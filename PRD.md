@@ -649,7 +649,8 @@ Full document tree, sidebar, login/logout, create/move/delete pages.
 **What to build:**
 - Auth: `users` table, bcrypt, JWT issue/validate, all four auth endpoints
 - Spaces: full CRUD, seed one space on register
-- Pages: adjacency list, recursive CTE subtree loader, CRUD + move + children + breadcrumb
+- Directories: self-referential adjacency list, recursive CTE ancestors, CRUD + move + children + breadcrumb
+- Pages: `directory_id` foreign key, CRUD + move + breadcrumb via directory ancestors
 - SSE: `GET /api/events`, `sync.Map` hub, broadcasts from page write handlers
 - Frontend: sidebar tree, lazy-load, `@dnd-kit` drag-drop, login/logout UI
 - `/internal/auth`: now validates the JWT for real
@@ -870,7 +871,7 @@ The following are explicitly excluded from version 1.0 and should not be designe
 
 | # | Decision | Rationale |
 |---|----------|-----------|
-| DI1 | `is_directory BOOLEAN DEFAULT 0` + `icon TEXT` on `pages` table | Minimal schema change; directories are pages without content |
+| DI1 | Split `directories` and `pages` into two tables | Prevents pages nesting inside pages; true filesystem model with directories as containers and pages as leaves |
 | DI2 | Click expands/collapses only; content area unchanged | Clear UX distinction from pages |
 | DI3 | Directories can set own permissions that override cascade | Same permission model as pages |
 | DI4 | Cascade delete all children on directory deletion | Consistent with tree semantics |

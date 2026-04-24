@@ -223,7 +223,7 @@ internal/
 | Iteration | Status | Delivered |
 |-----------|--------|-----------|
 | 1 — Collaborative Editor | ✅ Committed | Single page, real-time editing, stub auth, docker-compose |
-| 2 — Multi-Page Wiki | 🚧 Implemented (uncommitted) | Auth, spaces, page tree, sidebar, SSE, drag-drop skeleton, slug routing |
+| 2 — Multi-Page Wiki | ✅ Done | Auth, spaces, directory/page split, sidebar, SSE, drag-drop reorder, slug routing, refresh tokens |
 | 3 — Multi-User Access Control | 📋 Planned | Permissions, groups, invites, WebSocket auth enforcement |
 | 4 — History & Attachments | 📋 Planned | Snapshots, diff, restore, file upload |
 | 5 — Search & Production | 📋 Planned | FTS5, Litestream, HTTPS, rate limiting |

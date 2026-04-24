@@ -234,12 +234,13 @@ Delete a directory.
 **Response 204**
 
 ### POST /api/directories/{id}/move
-Move a directory to a new parent.
+Move a directory to a new parent. Optional `position` for explicit ordering.
 
 **Request:**
 ```json
 {
-  "parentId": "new-parent-directory-id-or-null"
+  "parentId": "new-parent-directory-id-or-null",
+  "position": 2
 }
 ```
 
@@ -353,12 +354,13 @@ Delete a page.
 **Response 204**
 
 ### POST /api/pages/{id}/move
-Move a page to a different directory.
+Move a page to a different directory. Optional `position` for explicit ordering.
 
 **Request:**
 ```json
 {
-  "directoryId": "new-directory-id-or-null"
+  "directoryId": "new-directory-id-or-null",
+  "position": 2
 }
 ```
 

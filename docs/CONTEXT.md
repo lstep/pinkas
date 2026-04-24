@@ -116,7 +116,7 @@ User (many)
 | Iteration | Scope | State | Notes |
 |-----------|-------|-------|-------|
 | 1 | Collaborative Editor | ✅ Done | Committed as `0285c8d`. Single page, stub auth, Hocuspocus, docker-compose |
-| 2 | Multi-Page Wiki | 🚧 Implemented (uncommitted) | Auth, spaces, page CRUD, tree, sidebar, SSE, slug routing, refresh tokens |
+| 2 | Multi-Page Wiki | ✅ Done | Auth, spaces, directory/page split, sidebar, SSE, drag-drop reorder, slug routing, refresh tokens |
 | 3 | Multi-User Access Control | 📋 Planned | Permissions CTE, groups, invites, WebSocket enforcement |
 | 4 | History & Attachments | 📋 Planned | Snapshots, diff, restore, file upload, auth-gated serving |
 | 5 | Search & Production | 📋 Planned | FTS5, Litestream, HTTPS, rate limiting, health checks |
@@ -171,7 +171,8 @@ User (many)
 
 1. **Permission stub**: All authenticated users currently have `admin` permission. The `/internal/auth` endpoint and all REST endpoints enforce auth but not granular permissions.
 2. **Space slug in markdown path**: `internal/pages/handler.go` Save handler has a TODO for looking up space slug from space ID; currently writes to `docs/default/`.
-3. **Circular move check**: Only checks `parentId == id` immediate case. Full descendant check via CTE needed.
+3. **Circular move check (pages)**: Not applicable — pages have no children. Directories have full descendant check via `GetAncestors`.
+4. **Cross-parent drag-and-drop**: UI only supports reordering within the same parent. Moving between parents requires manual move via API.
 4. **No rate limiting**: Auth endpoints are not yet rate-limited.
 5. **SSE CORS**: `Access-Control-Allow-Origin: *` is set broadly; should be restricted to frontend origin in production.
 6. **Refresh cookie Secure flag**: Set to `false` for local dev; must be `true` behind HTTPS.
@@ -181,7 +182,7 @@ User (many)
 
 ### Creating a Page
 
-1. Frontend POST `/api/pages` with `spaceId`, `title`, `parentId`
+1. Frontend POST `/api/pages` with `spaceId`, `title`, `directoryId`
 2. Backend generates slug (collision resolution), assigns position (`max+1`), inserts row
 3. Returns page object; frontend optimistically adds to tree store
 4. Backend broadcasts `page_created` SSE event to all connected clients
