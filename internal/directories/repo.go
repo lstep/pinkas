@@ -90,7 +90,7 @@ func (r *Repository) DeleteDirectory(ctx context.Context, id string) error {
 
 // ListRootDirectories lists root directories for a space.
 func (r *Repository) ListRootDirectories(ctx context.Context, spaceID string) ([]sqlc.Directory, error) {
-	return r.queries.ListRootDirectories(ctx, sqlc.NullString{String: spaceID, Valid: spaceID != ""})
+	return r.queries.ListRootDirectories(ctx, sql.NullString{String: spaceID, Valid: spaceID != ""})
 }
 
 // ListChildren lists direct children of a directory.

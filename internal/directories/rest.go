@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/mostdoc/mostdoc/internal/auth"
 	"github.com/mostdoc/mostdoc/internal/httputil"
 	sqlc "github.com/mostdoc/mostdoc/internal/db/query"
@@ -501,7 +500,4 @@ func resolveSlugCollision(baseSlug string, existing []sqlc.Directory) string {
 	return baseSlug + "-" + strconv.Itoa(maxSuffix+1)
 }
 
-// GenerateID returns a new UUID.
-func GenerateID() string {
-	return uuid.NewString()
-}
+
