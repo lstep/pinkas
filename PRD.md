@@ -1,7 +1,7 @@
 # Product Requirements Document
 
 **Product:** Collaborative Markdown Wiki (Docmost Clone)
-**Version:** 1.1
+**Version:** 1.2
 **Date:** April 2026
 **Status:** Approved — Design Decisions Resolved
 
@@ -885,3 +885,28 @@ The following are explicitly excluded from version 1.0 and should not be designe
 | M1 | Go calls external OpenAI-compatible LLM API for prompts | No embedded LLM; supports OpenAI, LM Studio, llama.cpp, Ollama |
 | M2 | LLM config in admin UI, stored in `settings` table | Runtime configuration without restarts |
 | M3 | LLM API key encrypted with AES-GCM, key derived from JWT secret via HKDF | No new key file needed; leverages existing secret |
+
+### Iteration 2 — Auth & Multi-Page Wiki
+
+| # | Decision | Rationale |
+|---|----------|-----------|
+| I2-1 | JWT library: `golang-jwt/jwt/v5` | Standard, well-maintained, covers all needs (HS256, claims, expiry) |
+| I2-2 | JWT claims: `sub`, `email`, `role`, `scopes`, `iat`, `exp` | `email` avoids DB hit for display; `scopes` empty for humans, populated for MCP |
+| I2-3 | Auth middleware: validates JWT, attaches user to request context | Standard Go pattern; keeps handlers clean; works with `net/http` context |
+| I2-4 | First admin: auto-detect zero users on `/api/auth/register` | No separate setup endpoint; register handler checks `COUNT(*) FROM users` |
+| I2-5 | Default space auto-created on first registration | Avoids chicken-and-egg problem; seed page migrated into it |
+| I2-6 | Page CRUD in single `internal/pages/` package | Tree ops are page ops; avoids cross-package dependencies |
+| I2-7 | SSE hub: `sync.Map` of channels + in-memory ring buffer | Simple, performant for single-server; no DB overhead |
+| I2-8 | SSE event types: `page_created`, `page_updated`, `page_moved`, `page_deleted` | Covers all tree mutations; more types added in later iterations |
+| I2-9 | Slug generation: auto from title, incrementing suffix on collision | Matches wiki conventions; avoids manual slug entry |
+| I2-10 | Sidebar tree: flat array with `children` field, lazy-loaded | Matches lazy-load pattern; no rebuild from flat data needed |
+| I2-11 | Frontend routing: `react-router-dom` v7 | Routes: `/setup`, `/login`, `/register`, `/`, `/s/:spaceSlug/*` |
+| I2-12 | Migrations: fully file-based `golang-migrate` | Clean history from start; `001_initial.up.sql` contains Iteration 1 DDL |
+| I2-13 | Seed page: update in place with new `space_id` | Preserves continuity; file path already matches default space slug |
+| I2-14 | Auth package: single `internal/auth/` with handler/service/repo/middleware | Flat domain-driven pattern per N-09 |
+| I2-15 | Spaces: full CRUD in Iteration 2 | Admin needs to organize content; small amount of code |
+| I2-16 | Drag-and-drop: `@dnd-kit/core` + `@dnd-kit/sortable` | Modern, accessible, MIT-licensed, already in PRD tech stack |
+| I2-17 | sqlc: adopt now for all Iteration 2 queries | Learn early; codegen pipeline ready before complex permission CTEs |
+| I2-18 | `/internal/auth`: query param token + docId, returns userId + permission | Matches PRD Section 6.2 spec; fine for internal Unix socket |
+| I2-19 | Token storage: access in localStorage, refresh in httpOnly cookie | Standard secure pattern; XSS risk low for self-hosted wiki |
+| I2-20 | Login cookie: `Set-Cookie` on login response | `httpOnly`, `Secure`, `SameSite=Lax`, `Path=/`, 7-day max age |

@@ -6,6 +6,9 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+
+	"github.com/mostdoc/mostdoc/internal/auth"
+	"github.com/mostdoc/mostdoc/internal/sse"
 )
 
 type saveRequest struct {
@@ -20,8 +23,9 @@ type authResponse struct {
 	Permission string `json:"permission"`
 }
 
-func RegisterRoutes(mux *http.ServeMux, db DB, logger *slog.Logger, dataDir string) {
-	handler := &Handler{db: db, logger: logger, dataDir: dataDir}
+func RegisterRoutes(mux *http.ServeMux, repo *Repository, logger *slog.Logger, dataDir string, authService *auth.Service, sseHub *sse.Hub) {
+	handler := &Handler{repo: repo, logger: logger, dataDir: dataDir, authService: authService, sseHub: sseHub}
+	restHandler := NewRESTHandler(repo, logger, sseHub)
 
 	mux.HandleFunc("GET /internal/auth", handler.Auth)
 	mux.HandleFunc("POST /internal/save", handler.Save)
@@ -29,24 +33,16 @@ func RegisterRoutes(mux *http.ServeMux, db DB, logger *slog.Logger, dataDir stri
 	mux.HandleFunc("POST /internal/cleanup", handler.Cleanup)
 	mux.HandleFunc("GET /internal/load", handler.Load)
 	mux.HandleFunc("GET /health", handler.Health)
-}
 
-type DB interface {
-	GetPage(id string) (Page, error)
-	SaveSnapshot(pageID, markdown string, yjsSnapshot []byte, authorID string) error
-	GetLatestSnapshot(pageID string) (*Snapshot, error)
-}
-
-type Page struct {
-	ID    string
-	Title string
-	Slug  string
+	restHandler.RegisterRESTRoutes(mux)
 }
 
 type Handler struct {
-	db     DB
-	logger *slog.Logger
-	dataDir string
+	repo        *Repository
+	logger      *slog.Logger
+	dataDir     string
+	authService *auth.Service
+	sseHub      *sse.Hub
 }
 
 func (h *Handler) Save(w http.ResponseWriter, r *http.Request) {
@@ -61,8 +57,17 @@ func (h *Handler) Save(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Look up page to get space slug for file path
+	page, err := h.repo.GetPage(r.Context(), req.DocID)
+	spaceSlug := "default"
+	if err == nil && page.SpaceID.Valid {
+		// TODO: look up space slug from space ID
+		// For now, default space
+		_ = page
+	}
+
 	// Write Markdown to disk
-	mdPath := filepath.Join(h.dataDir, "docs", "default", req.DocID+".md")
+	mdPath := filepath.Join(h.dataDir, "docs", spaceSlug, req.DocID+".md")
 	if err := os.MkdirAll(filepath.Dir(mdPath), 0755); err != nil {
 		h.logger.Error("failed to create docs directory", "error", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -77,7 +82,7 @@ func (h *Handler) Save(w http.ResponseWriter, r *http.Request) {
 
 	// Save snapshot to database
 	if req.YjsSnapshot != nil {
-		if err := h.db.SaveSnapshot(req.DocID, req.Markdown, req.YjsSnapshot, req.AuthorID); err != nil {
+		if err := h.repo.SaveSnapshot(r.Context(), req.DocID, req.Markdown, req.YjsSnapshot, req.AuthorID); err != nil {
 			h.logger.Error("failed to save snapshot", "error", err)
 			// Don't fail the response if markdown was written to disk
 		}
@@ -88,9 +93,22 @@ func (h *Handler) Save(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Auth(w http.ResponseWriter, r *http.Request) {
-	// Iteration 1 stub: always allows
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		http.Error(w, `{"error":"missing token"}`, http.StatusUnauthorized)
+		return
+	}
+
+	user, err := h.authService.ParseAccessToken(token)
+	if err != nil {
+		http.Error(w, `{"error":"invalid token"}`, http.StatusForbidden)
+		return
+	}
+
+	// Iteration 2: all authenticated users have admin permission
+	// Full permission resolution deferred to Iteration 3
 	resp := authResponse{
-		UserID:     "stub-user",
+		UserID:     user.ID,
 		Permission: "admin",
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -115,8 +133,8 @@ func (h *Handler) Load(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "docId required", http.StatusBadRequest)
 		return
 	}
-	snapshot, err := h.db.GetLatestSnapshot(docId)
-	if err != nil {
+	snapshot, err := h.repo.GetLatestSnapshot(r.Context(), docId)
+	if err != nil || snapshot == nil {
 		h.logger.Debug("no snapshot found, returning empty", "docId", docId)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{"yjsSnapshot": nil})

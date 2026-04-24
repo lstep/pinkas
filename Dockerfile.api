@@ -16,8 +16,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /mostdoc /usr/local/bin/mostdoc
+COPY --from=builder /app/migrations /app/migrations
 
 RUN mkdir -p /data
+ENV MIGRATIONS_PATH=file:///app/migrations
 
 EXPOSE 3000
 

@@ -3,53 +3,55 @@ package db
 import (
 	"database/sql"
 	"fmt"
+
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/sqlite3"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 )
 
-func Migrate(conn *sql.DB) error {
-	migrations := []string{
-		`CREATE TABLE IF NOT EXISTS pages (
-			id TEXT PRIMARY KEY,
-			space_id TEXT DEFAULT 'default',
-			title TEXT DEFAULT 'Untitled',
-			slug TEXT DEFAULT 'untitled',
-			position INTEGER DEFAULT 0,
-			parent_id TEXT REFERENCES pages(id),
-			created_by TEXT,
-			created_at INTEGER DEFAULT (strftime('%s', 'now')),
-			updated_at INTEGER DEFAULT (strftime('%s', 'now')),
-			is_directory BOOLEAN DEFAULT 0,
-			icon TEXT
-		)`,
-		`CREATE TABLE IF NOT EXISTS page_snapshots (
-			id TEXT PRIMARY KEY,
-			page_id TEXT REFERENCES pages(id),
-			yjs_snapshot BLOB,
-			markdown TEXT,
-			author_id TEXT,
-			created_at INTEGER DEFAULT (strftime('%s', 'now')),
-			label TEXT,
-			is_compacted INTEGER DEFAULT 0
-		)`,
-	}
-
-	tx, err := conn.Begin()
+func Migrate(conn *sql.DB, migrationsPath string) error {
+	driver, err := sqlite3.WithInstance(conn, &sqlite3.Config{})
 	if err != nil {
-		return fmt.Errorf("begin tx: %w", err)
-	}
-	defer tx.Rollback()
-
-	for _, ddl := range migrations {
-		if _, err := tx.Exec(ddl); err != nil {
-			return fmt.Errorf("exec ddl: %w", err)
-		}
+		return fmt.Errorf("create migrate driver: %w", err)
 	}
 
-	return tx.Commit()
+	m, err := migrate.NewWithDatabaseInstance(
+		migrationsPath,
+		"sqlite3",
+		driver,
+	)
+	if err != nil {
+		return fmt.Errorf("new migrate instance: %w", err)
+	}
+
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		return fmt.Errorf("run migrations: %w", err)
+	}
+
+	return nil
 }
 
 func Seed(conn *sql.DB) error {
+	// Ensure default space exists
+	var spaceCount int
+	err := conn.QueryRow("SELECT COUNT(*) FROM spaces").Scan(&spaceCount)
+	if err != nil {
+		return fmt.Errorf("count spaces: %w", err)
+	}
+
+	if spaceCount == 0 {
+		_, err := conn.Exec(`
+			INSERT INTO spaces (id, name, slug, default_permission)
+			VALUES ('default', 'Default Space', 'default', 'editor')
+		`)
+		if err != nil {
+			return fmt.Errorf("seed space: %w", err)
+		}
+	}
+
+	// Ensure seed page exists
 	var count int
-	err := conn.QueryRow("SELECT COUNT(*) FROM pages").Scan(&count)
+	err = conn.QueryRow("SELECT COUNT(*) FROM pages").Scan(&count)
 	if err != nil {
 		return fmt.Errorf("count pages: %w", err)
 	}

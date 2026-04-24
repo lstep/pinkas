@@ -1,0 +1,19 @@
+version: "2"
+sql:
+  - engine: "sqlite"
+    schema:
+      - "migrations/001_initial.up.sql"
+      - "migrations/002_auth.up.sql"
+      - "migrations/003_spaces.up.sql"
+      - "migrations/004_pages_enrich.up.sql"
+      - "migrations/005_split_directories_pages.up.sql"
+    queries: "queries/"
+    gen:
+      go:
+        package: "db"
+        out: "internal/db/query"
+        sql_package: "database/sql"
+        emit_interface: false
+        emit_json_tags: true
+        emit_prepared_queries: false
+        emit_empty_slices: true

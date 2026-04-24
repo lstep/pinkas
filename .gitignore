@@ -1,0 +1,29 @@
+# Dependencies
+frontend/node_modules/
+collab/node_modules/
+
+# Build output
+frontend/dist/
+bin/
+server
+
+# Database & data
+data/
+
+# IDE
+.reference/
+PLANS/
+opencode.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+*.test
+*.out
+coverage/
+
+# Temporary files
+*.tmp
+*.log

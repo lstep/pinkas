@@ -5,6 +5,7 @@ import Collaboration from '@tiptap/extension-collaboration'
 import CollaborationCursor from '@tiptap/extension-collaboration-cursor'
 import { HocuspocusProvider } from '@hocuspocus/provider'
 import { useEditorStore } from '../store/editor'
+import { useAuthStore } from '../store/auth'
 import './editor.css'
 
 const colors = [
@@ -30,20 +31,57 @@ function TipTapEditor({ provider, userName }: { provider: HocuspocusProvider; us
     ],
   })
 
+  // Debug: log Yjs document updates
+  useEffect(() => {
+    const ydoc = provider.document
+    console.log('[debug] Y.Doc initialized, name:', provider.configuration.name)
+    console.log('[debug] Y.Doc guid:', (ydoc as any).guid)
+
+    const updateHandler = (update: Uint8Array, origin: any) => {
+      const isRemote = origin !== null && origin !== ydoc
+      console.log('[debug] Yjs update:', update.length, 'bytes, remote:', isRemote, 'origin:', origin?.constructor?.name)
+    }
+
+    ydoc.on('update', updateHandler)
+
+    // Debug awareness
+    const awareness = provider.awareness
+    if (awareness) {
+      const awarenessHandler = () => {
+        const states = Array.from(awareness.getStates().values())
+        console.log('[debug] Awareness states count:', states.length, 'users:', states.map((s: any) => s.user?.name || 'anon'))
+      }
+      awareness.on('change', awarenessHandler)
+      return () => {
+        ydoc.off('update', updateHandler)
+        awareness.off('change', awarenessHandler)
+      }
+    }
+
+    return () => {
+      ydoc.off('update', updateHandler)
+    }
+  }, [provider])
+
   return <EditorContent editor={editor} className="tiptap" />
 }
 
 export const CollaborativeEditor: React.FC = () => {
-  const { providerUrl, docId, userName } = useEditorStore()
+  const { providerUrl, docId } = useEditorStore()
+  const accessToken = useAuthStore((s) => s.accessToken)
+  const user = useAuthStore((s) => s.user)
   const providerRef = useRef<HocuspocusProvider | null>(null)
   const [provider, setProvider] = useState<HocuspocusProvider | null>(null)
   const [status, setStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting')
+
+  const userName = user?.name || user?.email || 'Anonymous'
+  const token = accessToken || 'iteration1-stub'
 
   useEffect(() => {
     const p = new HocuspocusProvider({
       url: providerUrl,
       name: docId,
-      token: 'iteration1-stub',
+      token: token,
       onStatus: ({ status }) => {
         console.log('[provider] status:', status)
         setStatus(status as 'connecting' | 'connected' | 'disconnected')
@@ -60,7 +98,7 @@ export const CollaborativeEditor: React.FC = () => {
     return () => {
       p.destroy()
     }
-  }, [providerUrl, docId])
+  }, [providerUrl, docId, token])
 
   if (!provider) {
     return <div className="editor-container"><p>Initializing editor...</p></div>
@@ -68,12 +106,9 @@ export const CollaborativeEditor: React.FC = () => {
 
   return (
     <div className="editor-container">
-      <div className="editor-header">
-        <h1>Mostdoc — Iteration 1</h1>
-        <div className="status">
-          <span className={`status-dot ${status}`} />
-          {status}
-        </div>
+      <div className="editor-status-bar">
+        <span className={`status-dot ${status}`} title={status} />
+        <span className="status-text">{status === 'connected' ? 'Live' : status}</span>
       </div>
       <TipTapEditor provider={provider} userName={userName} />
     </div>
