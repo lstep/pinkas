@@ -45,7 +45,9 @@ function SortableTreeNode({ node, depth, activePageId, onCreatePage, onCreateDir
   const [showNewInput, setShowNewInput] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [newInputIsDir, setNewInputIsDir] = useState(false)
+  const [showIconPicker, setShowIconPicker] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const iconPickerRef = useRef<HTMLDivElement>(null)
 
   const isDirectory = node.type === 'directory'
   const displayTitle = isDirectory ? (node.name || node.title) : node.title
@@ -154,6 +156,22 @@ function SortableTreeNode({ node, depth, activePageId, onCreatePage, onCreateDir
     setMenuOpen(false)
   }
 
+  const handleChangeIcon = async (icon: string) => {
+    try {
+      if (isDirectory) {
+        await updateDirectory(node.id, { icon })
+        useTreeStore.getState().updateNode(node.id, { icon })
+      } else {
+        await updatePage(node.id, { icon })
+        useTreeStore.getState().updateNode(node.id, { icon })
+      }
+    } catch (err) {
+      alert('Failed to change icon')
+    }
+    setShowIconPicker(false)
+    setMenuOpen(false)
+  }
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleRename()
     if (e.key === 'Escape') {
@@ -216,6 +234,7 @@ function SortableTreeNode({ node, depth, activePageId, onCreatePage, onCreateDir
         {menuOpen && (
           <div className="tree-menu" ref={menuRef}>
             <button onClick={() => { setIsEditing(true); setMenuOpen(false) }}>Rename</button>
+            <button onClick={() => { setShowIconPicker(true) }}>Change Icon</button>
             {/* Only directories can have children */}
             {isDirectory && (
               <>
@@ -224,6 +243,14 @@ function SortableTreeNode({ node, depth, activePageId, onCreatePage, onCreateDir
               </>
             )}
             <button onClick={handleDelete} className="danger">Delete</button>
+          </div>
+        )}
+        {showIconPicker && (
+          <div className="icon-picker" ref={iconPickerRef}>
+            {['📄','📁','🚀','⭐','🔥','💡','📝','📊','🎯','🔧','💻','🐛','✅','❌','⚠️','❓','💬','🔒','🌐','📅','📎','🏷️','📌','🔖'].map(icon => (
+              <button key={icon} onClick={() => handleChangeIcon(icon)}>{icon}</button>
+            ))}
+            <button onClick={() => handleChangeIcon('')}>❌</button>
           </div>
         )}
       </div>
