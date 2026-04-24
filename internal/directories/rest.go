@@ -45,6 +45,7 @@ type UpdateDirectoryRequest struct {
 // MoveDirectoryRequest is the body for POST /api/directories/{id}/move.
 type MoveDirectoryRequest struct {
 	ParentID *string `json:"parentId"`
+	Position *int64  `json:"position,omitempty"`
 }
 
 // RESTHandler holds HTTP handlers for directory REST endpoints.
@@ -333,19 +334,22 @@ func (h *RESTHandler) Move(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Get max position in new parent
-	var spaceID string
-	existing, err := h.repo.GetDirectory(r.Context(), id)
-	if err != nil {
-		httputil.WriteError(w, http.StatusNotFound, "not_found", "Directory not found")
-		return
+	var position int64
+	if req.Position != nil {
+		position = *req.Position
+	} else {
+		var spaceID string
+		existing, err := h.repo.GetDirectory(r.Context(), id)
+		if err != nil {
+			httputil.WriteError(w, http.StatusNotFound, "not_found", "Directory not found")
+			return
+		}
+		if existing.SpaceID.Valid {
+			spaceID = existing.SpaceID.String
+		}
+		maxPos, _ := h.repo.GetMaxPosition(r.Context(), spaceID, req.ParentID)
+		position = maxPos + 1
 	}
-	if existing.SpaceID.Valid {
-		spaceID = existing.SpaceID.String
-	}
-
-	maxPos, _ := h.repo.GetMaxPosition(r.Context(), spaceID, req.ParentID)
-	position := maxPos + 1
 
 	if err := h.repo.UpdateDirectoryPosition(r.Context(), id, position, req.ParentID); err != nil {
 		h.logger.Error("move directory failed", "error", err)

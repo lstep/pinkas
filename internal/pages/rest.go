@@ -47,6 +47,7 @@ type UpdatePageRequest struct {
 // MovePageRequest is the body for POST /api/pages/{id}/move.
 type MovePageRequest struct {
 	DirectoryID *string `json:"directoryId"`
+	Position    *int64  `json:"position,omitempty"`
 }
 
 // RESTHandler holds HTTP handlers for page REST endpoints.
@@ -293,9 +294,13 @@ func (h *RESTHandler) Move(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get max position in new directory
-	maxPos, _ := h.repo.GetMaxPosition(r.Context(), req.DirectoryID)
-	position := maxPos + 1
+	var position int64
+	if req.Position != nil {
+		position = *req.Position
+	} else {
+		maxPos, _ := h.repo.GetMaxPosition(r.Context(), req.DirectoryID)
+		position = maxPos + 1
+	}
 
 	if err := h.repo.UpdatePagePosition(r.Context(), id, position, req.DirectoryID); err != nil {
 		h.logger.Error("move page failed", "error", err)
