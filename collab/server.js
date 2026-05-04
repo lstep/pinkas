@@ -1,8 +1,37 @@
 const { Server } = require('@hocuspocus/server')
 const Y = require('yjs')
+const { Schema } = require('prosemirror-model')
 const { defaultMarkdownSerializer } = require('prosemirror-markdown')
 const { yXmlFragmentToProseMirrorRootNode } = require('y-prosemirror')
 const http = require('http')
+
+// Define a schema matching Tiptap's default nodes for markdown serialization.
+// This is needed because y-prosemirror's yXmlFragmentToProseMirrorRootNode
+// requires a schema argument (no default in y-prosemirror 1.3.x).
+const tiptapSchema = new Schema({
+  nodes: {
+    doc: { content: 'block+' },
+    paragraph: { content: 'inline*', group: 'block' },
+    text: { group: 'inline' },
+    heading: { content: 'inline*', group: 'block', attrs: { level: { default: 1 } } },
+    code_block: { content: 'text*', group: 'block' },
+    hard_break: { inline: true, group: 'inline' },
+    horizontal_rule: { group: 'block' },
+    image: { group: 'inline', inline: true, attrs: { src: {}, alt: { default: null }, title: { default: null } } },
+    ordered_list: { content: 'list_item+', group: 'block', attrs: { order: { default: 1 } } },
+    bullet_list: { content: 'list_item+', group: 'block' },
+    list_item: { content: 'paragraph block*' },
+    blockquote: { content: 'block+', group: 'block' },
+  },
+  marks: {
+    em: {},
+    strong: {},
+    link: { attrs: { href: {} } },
+    code: {},
+    strike: {},
+    underline: {},
+  }
+})
 
 const API_URL = process.env.API_URL || 'http://localhost:3000'
 const PORT = parseInt(process.env.PORT || '3001', 10)
@@ -19,6 +48,7 @@ async function callInternal(path, options = {}) {
 
 const server = new Server({
   gc: false,
+  debounce: 5000,
 
   async onLoadDocument({ documentName }) {
     console.log('[onLoadDocument] loading:', documentName)
@@ -81,12 +111,13 @@ const AUTO_SAVE_INTERVAL = 5 * 60 * 1000 // 5 minutes
 
 setInterval(async () => {
   try {
-    if (server.documents && server.documents.size > 0) {
-      console.log(`[auto-save] saving ${server.documents.size} active documents`)
-      for (const [documentName, connection] of server.documents) {
+    const docs = server.hocuspocus?.documents
+    if (docs && docs.size > 0) {
+      console.log(`[auto-save] saving ${docs.size} active documents`)
+      for (const [documentName, ydoc] of docs) {
         try {
-          const snapshot = Buffer.from(Y.encodeStateAsUpdate(connection.document))
-          const markdown = yjsToMarkdown(connection.document)
+          const snapshot = Buffer.from(Y.encodeStateAsUpdate(ydoc))
+          const markdown = yjsToMarkdown(ydoc)
 
           await callInternal('/internal/save', {
             method: 'POST',
@@ -110,13 +141,52 @@ setInterval(async () => {
 
 // Yjs → ProseMirror → Markdown conversion
 function yjsToMarkdown(ydoc) {
+  const fragment = ydoc.getXmlFragment('prosemirror')
+  
+  // Log fragment content for debugging
+  let childCount = 0
+  try { fragment.forEach(() => childCount++) } catch (e) {}
+  console.log('[yjsToMarkdown] fragment child count:', childCount)
+  
+  // Try primary path: y-prosemirror + prosemirror-markdown
   try {
-    const yXmlFragment = ydoc.getXmlFragment('prosemirror')
-    const pmNode = yXmlFragmentToProseMirrorRootNode(yXmlFragment)
-    return defaultMarkdownSerializer.serialize(pmNode)
+    const pmNode = yXmlFragmentToProseMirrorRootNode(fragment, tiptapSchema)
+    const md = defaultMarkdownSerializer.serialize(pmNode)
+    if (md && md.trim()) {
+      console.log('[yjsToMarkdown] success, length:', md.length)
+      return md
+    }
+    console.log('[yjsToMarkdown] primary succeeded but result is empty')
   } catch (err) {
+    console.error('[yjsToMarkdown] primary serialization failed:', err.message)
+  }
+  
+  // Fallback: extract plain text directly from Yjs XML fragment
+  try {
+    return extractTextFromYFragment(fragment)
+  } catch (fallbackErr) {
+    console.error('[yjsToMarkdown] text fallback also failed:', fallbackErr.message)
     return ''
   }
+}
+
+// Fallback: extract plain text from a Yjs XML fragment
+function extractTextFromYFragment(fragment) {
+  const parts = []
+  const walk = (node) => {
+    // Y.XmlText nodes have toDelta(), Y.XmlElement has getAttribute()
+    if (typeof node.toDelta === 'function') {
+      // XmlText: extract text content
+      try { parts.push(node.toString()) } catch (e) { /* skip unreadable nodes */ }
+    } else if (typeof node.forEach === 'function') {
+      // XmlFragment or XmlElement: recurse into children
+      node.forEach(child => walk(child))
+      // Add newline after block-level elements (not the root fragment)
+      if (typeof node.getAttribute === 'function') parts.push('\n')
+    }
+  }
+  walk(fragment)
+  return parts.join('').trim()
 }
 
 // Health endpoint
