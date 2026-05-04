@@ -224,3 +224,91 @@
 }
 
 /* Resize handles for FileUpload extension (auto-injected styles may override) */
+
+/* ─── Bubble Menu ──────────────────────────── */
+
+.bubble-menu {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  background: var(--color-text);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  color: white;
+}
+
+.bubble-menu button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 4px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-inverse);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  line-height: 1;
+}
+
+.bubble-menu button:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.bubble-menu button.is-active {
+  background: rgba(255, 255, 255, 0.2);
+  color: var(--color-accent);
+}
+
+.bubble-menu button strong {
+  font-weight: 700;
+}
+
+.bubble-menu button em {
+  font-style: italic;
+}
+
+.bubble-menu button s {
+  text-decoration: line-through;
+}
+
+.underline-icon {
+  text-decoration: underline;
+}
+
+.bubble-separator {
+  width: 1px;
+  height: 18px;
+  background: rgba(255, 255, 255, 0.2);
+  margin: 0 3px;
+  flex-shrink: 0;
+}
+
+.bubble-color-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  position: relative;
+}
+
+.bubble-color-label:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.bubble-color-picker {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  background: none;
+}

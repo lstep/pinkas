@@ -1,8 +1,12 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
+import { BubbleMenu } from '@tiptap/react/menus'
 import StarterKit from '@tiptap/starter-kit'
 import Collaboration from '@tiptap/extension-collaboration'
 import CollaborationCaret from '@tiptap/extension-collaboration-caret'
+import { TextStyle } from '@tiptap/extension-text-style'
+import Color from '@tiptap/extension-color'
+import TextAlign from '@tiptap/extension-text-align'
 import { FileUpload } from '@tiptap-codeless/extension-file-upload'
 import { HocuspocusProvider } from '@hocuspocus/provider'
 import { useEditorStore } from '../store/editor'
@@ -31,6 +35,11 @@ function TipTapEditor({ provider, userName, permission, pageId }: { provider: Ho
           name: userName,
           color: colors[Math.floor(Math.random() * colors.length)],
         },
+      }),
+      TextStyle,
+      Color,
+      TextAlign.configure({
+        types: ['heading', 'paragraph'],
       }),
       FileUpload.configure({
         locale: 'en',
@@ -122,9 +131,132 @@ function TipTapEditor({ provider, userName, permission, pageId }: { provider: Ho
     }
   }, [provider])
 
+  const shouldShowBubble = useCallback(({ editor: ed }: { editor: any }) => {
+    if (!ed || ed.isDestroyed) return false
+    if (!ed.isEditable) return false
+    const { from, to, empty } = ed.state.selection
+    return !empty && from !== to
+  }, [])
+
   return (
     <div className="editor-wrapper">
       <EditorContent editor={editor} className="tiptap" />
+      {editor && (
+        <BubbleMenu
+          editor={editor}
+          shouldShow={shouldShowBubble}
+          options={{ placement: 'top' }}
+        >
+          <div className="bubble-menu">
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().toggleBold().run()}
+              className={editor.isActive('bold') ? 'is-active' : ''}
+              title="Bold"
+            >
+              <strong>B</strong>
+            </button>
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().toggleItalic().run()}
+              className={editor.isActive('italic') ? 'is-active' : ''}
+              title="Italic"
+            >
+              <em>I</em>
+            </button>
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().toggleUnderline().run()}
+              className={editor.isActive('underline') ? 'is-active' : ''}
+              title="Underline"
+            >
+              <span className="underline-icon">U</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().toggleStrike().run()}
+              className={editor.isActive('strike') ? 'is-active' : ''}
+              title="Strikethrough"
+            >
+              <s>S</s>
+            </button>
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().toggleCode().run()}
+              className={editor.isActive('code') ? 'is-active' : ''}
+              title="Inline code"
+            >
+              {'<>'}
+            </button>
+
+            <span className="bubble-separator" />
+
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+              className={editor.isActive('heading', { level: 1 }) ? 'is-active' : ''}
+              title="Heading 1"
+            >
+              H1
+            </button>
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+              className={editor.isActive('heading', { level: 2 }) ? 'is-active' : ''}
+              title="Heading 2"
+            >
+              H2
+            </button>
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+              className={editor.isActive('heading', { level: 3 }) ? 'is-active' : ''}
+              title="Heading 3"
+            >
+              H3
+            </button>
+
+            <span className="bubble-separator" />
+
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().setTextAlign('left').run()}
+              className={editor.isActive({ textAlign: 'left' }) ? 'is-active' : ''}
+              title="Align left"
+            >
+              ≡
+            </button>
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().setTextAlign('center').run()}
+              className={editor.isActive({ textAlign: 'center' }) ? 'is-active' : ''}
+              title="Align center"
+            >
+              ≡
+            </button>
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().setTextAlign('right').run()}
+              className={editor.isActive({ textAlign: 'right' }) ? 'is-active' : ''}
+              title="Align right"
+            >
+              ≡
+            </button>
+
+            <span className="bubble-separator" />
+
+            <label className="bubble-color-label" title="Text color">
+              <input
+                type="color"
+                value={editor.getAttributes('textStyle').color || '#000000'}
+                onChange={(e) => editor.chain().focus().setColor(e.target.value).run()}
+                onBlur={(e) => editor.chain().focus().setColor(e.target.value).run()}
+                className="bubble-color-picker"
+              />
+            </label>
+          </div>
+        </BubbleMenu>
+      )}
     </div>
   )
 }
