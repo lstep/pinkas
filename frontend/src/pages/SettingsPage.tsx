@@ -14,11 +14,14 @@ import {
   listPermissionsForTarget,
   setPermission,
   removePermission,
+  inviteUser,
+  InviteResponse,
   Permission,
   User,
   Group,
   GroupMember,
 } from '../api/admin'
+import { Button, Input, Card, Badge, Modal } from '../components/ui'
 import './SettingsPage.css'
 
 export function SettingsPage() {
@@ -46,15 +49,25 @@ export function SettingsPage() {
   const [newPermGranteeId, setNewPermGranteeId] = useState('')
   const [newPermLevel, setNewPermLevel] = useState(1)
 
+  // Invite user state
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteName, setInviteName] = useState('')
+  const [inviteRole, setInviteRole] = useState('viewer')
+  const [isInviting, setIsInviting] = useState(false)
+  const [inviteResponse, setInviteResponse] = useState<InviteResponse | null>(null)
+  const [showInviteModal, setShowInviteModal] = useState(false)
+
   // Redirect non-admins
   if (currentUser?.role !== 'admin') {
     return (
       <div className="settings-page">
-        <div className="settings-container">
+        <Card className="settings-unauthorized" padding="lg">
           <h1>Settings</h1>
           <p>You do not have permission to access this page.</p>
-          <button onClick={() => navigate('/')}>Back to Space</button>
-        </div>
+          <Button variant="primary" onClick={() => navigate('/')}>
+            Back to Space
+          </Button>
+        </Card>
       </div>
     )
   }
@@ -181,6 +194,41 @@ export function SettingsPage() {
     }
   }
 
+  const handleInviteUser = async () => {
+    if (!inviteEmail.trim()) {
+      alert('Email is required')
+      return
+    }
+    setIsInviting(true)
+    try {
+      const response = await inviteUser(inviteEmail.trim(), inviteName.trim() || undefined, inviteRole)
+      setInviteResponse(response)
+      setShowInviteModal(true)
+      // Reset form
+      setInviteEmail('')
+      setInviteName('')
+      setInviteRole('viewer')
+    } catch (err: any) {
+      alert(err.message || 'Failed to invite user')
+    } finally {
+      setIsInviting(false)
+    }
+  }
+
+  const handleCopyPassword = () => {
+    if (inviteResponse?.tempPassword) {
+      navigator.clipboard.writeText(inviteResponse.tempPassword)
+      alert('Password copied to clipboard!')
+    }
+  }
+
+  const handleCloseInviteModal = () => {
+    setShowInviteModal(false)
+    setInviteResponse(null)
+    // Refresh user list
+    loadData()
+  }
+
   const levelLabel = (level: number) => {
     switch (level) {
       case 1: return 'Viewer'
@@ -190,106 +238,232 @@ export function SettingsPage() {
     }
   }
 
+  const levelBadgeVariant = (level: number): 'viewer' | 'editor' | 'admin' | 'default' => {
+    switch (level) {
+      case 1: return 'viewer'
+      case 2: return 'editor'
+      case 3: return 'admin'
+      default: return 'default'
+    }
+  }
+
   return (
     <div className="settings-page">
       <header className="settings-header">
         <h1>Settings</h1>
-        <nav>
-          <button onClick={() => navigate('/')} className="btn-back">
-            &larr; Back to Space
-          </button>
-          <button onClick={logout} className="btn-logout">
+        <nav className="settings-nav">
+          <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
+            ← Back to Space
+          </Button>
+          <Button variant="ghost" size="sm" onClick={logout}>
             Logout
-          </button>
+          </Button>
         </nav>
       </header>
 
       <div className="settings-tabs">
         <button
-          className={`tab ${activeTab === 'users' ? 'active' : ''}`}
+          className={`settings-tab ${activeTab === 'users' ? 'active' : ''}`}
           onClick={() => setActiveTab('users')}
         >
           Users ({users.length})
         </button>
         <button
-          className={`tab ${activeTab === 'groups' ? 'active' : ''}`}
+          className={`settings-tab ${activeTab === 'groups' ? 'active' : ''}`}
           onClick={() => setActiveTab('groups')}
         >
           Groups ({groups.length})
         </button>
         <button
-          className={`tab ${activeTab === 'permissions' ? 'active' : ''}`}
+          className={`settings-tab ${activeTab === 'permissions' ? 'active' : ''}`}
           onClick={() => setActiveTab('permissions')}
         >
           Permissions
         </button>
       </div>
 
-      {error && <div className="settings-error">{error}</div>}
+      {error && (
+        <div className="settings-error" role="alert">
+          {error}
+        </div>
+      )}
 
       {loading ? (
-        <p className="settings-loading">Loading...</p>
+        <div className="settings-loading">
+          <div className="skeleton" style={{ width: 200, height: 24, marginBottom: 16 }} />
+          <div className="skeleton" style={{ width: '100%', height: 40, marginBottom: 8 }} />
+          <div className="skeleton" style={{ width: '100%', height: 40, marginBottom: 8 }} />
+          <div className="skeleton" style={{ width: '100%', height: 40 }} />
+        </div>
       ) : activeTab === 'users' ? (
         <div className="settings-section">
-          <table className="users-table">
-            <thead>
-              <tr>
-                <th>Email</th>
-                <th>Name</th>
-                <th>Role</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u) => (
-                <tr key={u.id}>
-                  <td>{u.email}</td>
-                  <td>{u.name}</td>
-                  <td>
-                    <select
-                      value={u.role}
-                      onChange={(e) => handleRoleChange(u.id, e.target.value)}
-                      disabled={u.id === currentUser?.id}
-                    >
-                      <option value="viewer">Viewer</option>
-                      <option value="editor">Editor</option>
-                      <option value="admin">Admin</option>
-                    </select>
-                  </td>
-                  <td>
-                    <button
-                      className="btn-danger"
-                      onClick={() => handleDeleteUser(u.id)}
-                      disabled={u.id === currentUser?.id}
-                    >
-                      Delete
-                    </button>
-                  </td>
+          {/* Invite User Card */}
+          <Card className="invite-user-card" padding="md">
+            <h3 className="invite-user-title">Invite User</h3>
+            <div className="invite-user-form">
+              <div className="invite-field">
+                <label htmlFor="invite-email">Email *</label>
+                <Input
+                  id="invite-email"
+                  type="email"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  placeholder="user@example.com"
+                  onKeyDown={(e) => e.key === 'Enter' && handleInviteUser()}
+                />
+              </div>
+              <div className="invite-field">
+                <label htmlFor="invite-name">Name</label>
+                <Input
+                  id="invite-name"
+                  type="text"
+                  value={inviteName}
+                  onChange={(e) => setInviteName(e.target.value)}
+                  placeholder="Optional display name"
+                />
+              </div>
+              <div className="invite-field">
+                <label htmlFor="invite-role">Role</label>
+                <select
+                  id="invite-role"
+                  value={inviteRole}
+                  onChange={(e) => setInviteRole(e.target.value)}
+                  className="invite-role-select"
+                >
+                  <option value="viewer">Viewer</option>
+                  <option value="editor">Editor</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              <Button
+                variant="primary"
+                onClick={handleInviteUser}
+                loading={isInviting}
+                disabled={!inviteEmail.trim()}
+              >
+                Invite
+              </Button>
+            </div>
+          </Card>
+
+          {/* Users Table */}
+          <Card className="users-table-card" padding="none">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Email</th>
+                  <th>Name</th>
+                  <th>Role</th>
+                  <th>Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {users.map((u) => (
+                  <tr key={u.id}>
+                    <td>{u.email}</td>
+                    <td>{u.name}</td>
+                    <td>
+                      <Badge variant={u.role as 'admin' | 'editor' | 'viewer' || 'default'}>
+                        {u.role}
+                      </Badge>
+                    </td>
+                    <td>
+                      <div className="table-actions">
+                        <select
+                          value={u.role}
+                          onChange={(e) => handleRoleChange(u.id, e.target.value)}
+                          disabled={u.id === currentUser?.id}
+                        >
+                          <option value="viewer">Viewer</option>
+                          <option value="editor">Editor</option>
+                          <option value="admin">Admin</option>
+                        </select>
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          onClick={() => handleDeleteUser(u.id)}
+                          disabled={u.id === currentUser?.id}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Card>
+
+          {/* Invite Success Modal */}
+          <Modal
+            isOpen={showInviteModal}
+            onClose={handleCloseInviteModal}
+            title="User Invited"
+            footer={
+              <Button variant="primary" onClick={handleCloseInviteModal}>
+                Done
+              </Button>
+            }
+          >
+            {inviteResponse && (
+              <div className="invite-success-content">
+                <div className="invite-success-row">
+                  <span className="invite-success-label">Email:</span>
+                  <span className="invite-success-value">{inviteResponse.email}</span>
+                </div>
+                {inviteResponse.name && (
+                  <div className="invite-success-row">
+                    <span className="invite-success-label">Name:</span>
+                    <span className="invite-success-value">{inviteResponse.name}</span>
+                  </div>
+                )}
+                <div className="invite-success-row">
+                  <span className="invite-success-label">Role:</span>
+                  <span className="invite-success-value">
+                    <Badge variant={inviteResponse.role as 'admin' | 'editor' | 'viewer' || 'default'}>
+                      {inviteResponse.role}
+                    </Badge>
+                  </span>
+                </div>
+                <div className="invite-password-section">
+                  <span className="invite-success-label">Temporary Password:</span>
+                  <div className="invite-password-box">
+                    <code className="invite-password-code">{inviteResponse.tempPassword}</code>
+                    <Button variant="secondary" size="sm" onClick={handleCopyPassword}>
+                      Copy Password
+                    </Button>
+                  </div>
+                  <p className="invite-password-hint">
+                    Share this password with the user. They should change it after their first login.
+                  </p>
+                </div>
+              </div>
+            )}
+          </Modal>
         </div>
       ) : activeTab === 'groups' ? (
         <div className="settings-section">
-          <div className="create-group">
-            <input
-              type="text"
-              value={newGroupName}
-              onChange={(e) => setNewGroupName(e.target.value)}
-              placeholder="New group name..."
-              onKeyDown={(e) => e.key === 'Enter' && handleCreateGroup()}
-            />
-            <button className="btn-primary" onClick={handleCreateGroup}>
-              Create Group
-            </button>
-          </div>
+          <Card className="create-group-card" padding="md">
+            <div className="create-group">
+              <Input
+                type="text"
+                value={newGroupName}
+                onChange={(e) => setNewGroupName(e.target.value)}
+                placeholder="New group name..."
+                onKeyDown={(e) => e.key === 'Enter' && handleCreateGroup()}
+              />
+              <Button variant="primary" onClick={handleCreateGroup}>
+                Create Group
+              </Button>
+            </div>
+          </Card>
 
           <div className="groups-list">
             {groups.map((g) => (
-              <div
+              <Card
                 key={g.id}
                 className={`group-item ${selectedGroup === g.id ? 'selected' : ''}`}
+                padding="none"
               >
                 <div
                   className="group-header"
@@ -299,15 +473,16 @@ export function SettingsPage() {
                   }}
                 >
                   <span className="group-name">{g.name}</span>
-                  <button
-                    className="btn-danger btn-sm"
+                  <Button
+                    variant="danger"
+                    size="sm"
                     onClick={(e) => {
                       e.stopPropagation()
                       handleDeleteGroup(g.id)
                     }}
                   >
                     Delete
-                  </button>
+                  </Button>
                 </div>
 
                 {selectedGroup === g.id && (
@@ -326,22 +501,23 @@ export function SettingsPage() {
                             </option>
                           ))}
                       </select>
-                      <button className="btn-primary btn-sm" onClick={handleAddMember}>
+                      <Button variant="primary" size="sm" onClick={handleAddMember}>
                         Add
-                      </button>
+                      </Button>
                     </div>
-                    <ul>
+                    <ul className="members-list">
                       {groupMembers.map((m) => (
                         <li key={m.id} className="member-item">
                           <span>
                             {m.email} ({m.name || 'no name'})
                           </span>
-                          <button
-                            className="btn-danger btn-sm"
+                          <Button
+                            variant="danger"
+                            size="sm"
                             onClick={() => handleRemoveMember(m.id)}
                           >
                             Remove
-                          </button>
+                          </Button>
                         </li>
                       ))}
                       {groupMembers.length === 0 && (
@@ -350,42 +526,44 @@ export function SettingsPage() {
                     </ul>
                   </div>
                 )}
-              </div>
+              </Card>
             ))}
             {groups.length === 0 && <p className="empty">No groups created yet</p>}
           </div>
         </div>
       ) : (
         <div className="settings-section">
-          <div className="perm-target-form">
-            <label>
-              Target Type:
-              <select value={permTargetType} onChange={(e) => setPermTargetType(e.target.value)}>
-                <option value="space">Space</option>
-                <option value="directory">Directory</option>
-                <option value="page">Page</option>
-              </select>
-            </label>
-            <label>
-              Target ID:
-              <input
-                type="text"
-                value={permTargetId}
-                onChange={(e) => setPermTargetId(e.target.value)}
-                placeholder="UUID or slug..."
-              />
-            </label>
-            <button className="btn-primary" onClick={loadPermissions}>
-              Load Permissions
-            </button>
-          </div>
+          <Card className="perm-target-card" padding="md">
+            <div className="perm-target-form">
+              <label>
+                Target Type:
+                <select value={permTargetType} onChange={(e) => setPermTargetType(e.target.value)}>
+                  <option value="space">Space</option>
+                  <option value="directory">Directory</option>
+                  <option value="page">Page</option>
+                </select>
+              </label>
+              <label>
+                Target ID:
+                <Input
+                  type="text"
+                  value={permTargetId}
+                  onChange={(e) => setPermTargetId(e.target.value)}
+                  placeholder="UUID or slug..."
+                />
+              </label>
+              <Button variant="primary" onClick={loadPermissions}>
+                Load Permissions
+              </Button>
+            </div>
+          </Card>
 
-          <div className="perm-list">
+          <Card className="perm-list-card" padding="md">
             <h3>Current Permissions</h3>
             {permissions.length === 0 ? (
               <p className="empty">No explicit permissions set. Default permission from space applies.</p>
             ) : (
-              <table className="perms-table">
+              <table className="data-table perms-table">
                 <thead>
                   <tr>
                     <th>Grantee Type</th>
@@ -404,23 +582,28 @@ export function SettingsPage() {
                           : (groups.find((g) => g.id === p.granteeId)?.name || p.granteeId)
                         }
                       </td>
-                      <td>{levelLabel(p.level)}</td>
                       <td>
-                        <button
-                          className="btn-danger btn-sm"
+                        <Badge variant={levelBadgeVariant(p.level)}>
+                          {levelLabel(p.level)}
+                        </Badge>
+                      </td>
+                      <td>
+                        <Button
+                          variant="danger"
+                          size="sm"
                           onClick={() => handleRemovePermission(p.granteeType, p.granteeId)}
                         >
                           Remove
-                        </button>
+                        </Button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             )}
-          </div>
+          </Card>
 
-          <div className="perm-add-form">
+          <Card className="perm-add-card" padding="md">
             <h3>Add / Edit Permission</h3>
             <div className="perm-add-row">
               <select value={newPermGranteeType} onChange={(e) => setNewPermGranteeType(e.target.value as 'user' | 'group')}>
@@ -443,11 +626,11 @@ export function SettingsPage() {
                 <option value={2}>Editor</option>
                 <option value={3}>Admin</option>
               </select>
-              <button className="btn-primary btn-sm" onClick={handleAddPermission}>
+              <Button variant="primary" size="sm" onClick={handleAddPermission}>
                 Apply
-              </button>
+              </Button>
             </div>
-          </div>
+          </Card>
         </div>
       )}
     </div>

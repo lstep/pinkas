@@ -1,8 +1,8 @@
 .sidebar {
-  width: 260px;
-  min-width: 260px;
-  background: #f8f9fa;
-  border-right: 1px solid #e9ecef;
+  width: var(--sidebar-width);
+  min-width: var(--sidebar-width);
+  background: var(--color-bg-alt);
+  border-right: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -13,53 +13,67 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid #e9ecef;
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .sidebar-header h2 {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--text-sm);
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: #495057;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
 }
 
 .btn-new {
-  background: #228be6;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  width: 24px;
-  height: 24px;
-  font-size: 16px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.btn-new:hover {
-  background: #1c7ed6;
+  width: 24px !important;
+  height: 24px !important;
+  padding: 0 !important;
+  min-width: unset !important;
 }
 
 .new-page-input {
-  padding: 8px 16px;
-  border-bottom: 1px solid #e9ecef;
+  padding: var(--sp-2) var(--sp-4);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .new-page-input input {
   width: 100%;
-  padding: 6px 8px;
-  border: 1px solid #dee2e6;
-  border-radius: 4px;
-  font-size: 13px;
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  background: var(--color-surface);
+}
+
+.new-page-input input:focus {
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 3px rgba(192, 57, 43, 0.12);
+}
+
+.new-input-type-toggle {
+  display: flex;
+  gap: var(--sp-3);
+  margin-top: var(--sp-2);
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+
+.new-input-type-toggle label {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  cursor: pointer;
+}
+
+.new-input-type-toggle input[type="radio"] {
+  margin: 0;
 }
 
 .tree {
   flex: 1;
-  padding: 4px 0;
+  padding: var(--sp-1) 0;
 }
 
 .tree-node {
@@ -69,27 +83,27 @@
 .tree-row {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
+  gap: var(--sp-1);
+  padding: var(--sp-1) var(--sp-2);
   cursor: pointer;
-  border-radius: 4px;
-  margin: 0 4px;
+  border-radius: var(--radius-md);
+  margin: 0 var(--sp-1);
   position: relative;
 }
 
 .tree-row:hover {
-  background: #e9ecef;
+  background: var(--color-surface-hover);
 }
 
 .tree-row.active {
-  background: #dbe4ff;
+  background: var(--color-primary-subtle);
 }
 
 .drag-handle {
   opacity: 0;
   cursor: grab;
   font-size: 10px;
-  color: #868e96;
+  color: var(--color-text-muted);
   padding: 0 2px;
   letter-spacing: -1px;
 }
@@ -103,32 +117,32 @@
 }
 
 .drag-overlay {
-  background: white;
-  border: 1px solid #dee2e6;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  padding: 6px 12px;
-  border-radius: 4px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-lg);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--sp-2);
 }
 
 .tree-toggle {
   width: 16px;
   text-align: center;
   font-size: 10px;
-  color: #868e96;
+  color: var(--color-text-muted);
   cursor: pointer;
 }
 
 .tree-icon {
-  font-size: 14px;
+  font-size: var(--text-sm);
 }
 
 .tree-title {
   flex: 1;
-  font-size: 13px;
-  color: #343a40;
+  font-size: var(--text-sm);
+  color: var(--color-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -136,18 +150,19 @@
 
 .tree-rename-input {
   flex: 1;
-  font-size: 13px;
-  padding: 2px 4px;
-  border: 1px solid #228be6;
-  border-radius: 3px;
+  font-size: var(--text-sm);
+  padding: 2px var(--sp-1);
+  border: 1px solid var(--color-border-focus);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
 }
 
 .tree-menu-btn {
   opacity: 0;
-  padding: 0 4px;
+  padding: 0 var(--sp-1);
   cursor: pointer;
-  font-size: 12px;
-  color: #868e96;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
 }
 
 .tree-row:hover .tree-menu-btn {
@@ -156,86 +171,88 @@
 
 .tree-menu {
   position: absolute;
-  right: 4px;
+  right: var(--sp-1);
   top: 28px;
-  background: white;
-  border: 1px solid #dee2e6;
-  border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
   z-index: 100;
-  min-width: 100px;
+  min-width: 120px;
 }
 
 .tree-menu button {
   display: block;
   width: 100%;
-  padding: 6px 12px;
+  padding: var(--sp-2) var(--sp-3);
   border: none;
   background: none;
   text-align: left;
-  font-size: 13px;
+  font-size: var(--text-sm);
   cursor: pointer;
+  color: var(--color-text);
 }
 
 .tree-menu button:hover {
-  background: #f1f3f5;
+  background: var(--color-bg-alt);
 }
 
 .tree-menu button.danger {
-  color: #e03131;
+  color: var(--color-danger);
 }
 
 .tree-new-input {
-  padding: 4px 8px;
+  padding: var(--sp-1) var(--sp-2);
 }
 
 .tree-new-input input {
   width: 100%;
-  padding: 4px 6px;
-  border: 1px solid #228be6;
-  border-radius: 3px;
-  font-size: 13px;
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--color-border-focus);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  background: var(--color-surface);
 }
 
 .tree-loading {
-  font-size: 12px;
-  color: #868e96;
-  padding: 4px 8px;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  padding: var(--sp-1) var(--sp-2);
 }
 
 .empty {
-  padding: 16px;
+  padding: var(--sp-4);
   text-align: center;
-  color: #868e96;
-  font-size: 13px;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
 }
 
 .icon-picker {
   position: absolute;
-  right: 4px;
+  right: var(--sp-1);
   top: 52px;
-  background: white;
-  border: 1px solid #dee2e6;
-  border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
   z-index: 101;
   display: grid;
   grid-template-columns: repeat(6, 1fr);
   gap: 2px;
-  padding: 6px;
+  padding: var(--sp-2);
 }
 
 .icon-picker button {
   background: none;
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 16px;
-  padding: 4px;
+  font-size: var(--text-base);
+  padding: var(--sp-1);
   line-height: 1;
 }
 
 .icon-picker button:hover {
-  background: #f1f3f5;
-  border-color: #dee2e6;
+  background: var(--color-bg-alt);
+  border-color: var(--color-border);
 }

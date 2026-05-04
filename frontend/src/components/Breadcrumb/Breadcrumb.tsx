@@ -89,20 +89,20 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ pageId, spaceSlug }) => 
 
   if (!pageId) {
     return (
-      <nav className="breadcrumb">
+      <nav className="breadcrumb" aria-label="Breadcrumb">
         <Link to={`/s/${spaceSlug}`}>Home</Link>
       </nav>
     )
   }
 
   return (
-    <nav className="breadcrumb">
+    <nav className="breadcrumb" aria-label="Breadcrumb">
       <Link to={`/s/${spaceSlug}`}>Home</Link>
       {breadcrumb.map((item, idx) => (
         <React.Fragment key={item.id}>
-          <span className="breadcrumb-sep">/</span>
+          <span className="breadcrumb-separator" aria-hidden="true">/</span>
           {idx === breadcrumb.length - 1 ? (
-            <span className="breadcrumb-current">{item.title}</span>
+            <span className="breadcrumb-current" aria-current="page">{item.title}</span>
           ) : (
             <Link to={`/s/${spaceSlug}/${item.slug}`}>{item.title}</Link>
           )}

@@ -1,9 +1,11 @@
 package auth
 
 import (
+	"crypto/rand"
 	"database/sql"
 	"encoding/json"
 	"log/slog"
+	"math/big"
 	"net/http"
 	"strings"
 	"time"
@@ -35,6 +37,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/users/{id}", RequireAuth(h.GetUser))
 	mux.HandleFunc("PATCH /api/users/{id}", RequireAuth(h.UpdateUser))
 	mux.HandleFunc("DELETE /api/users/{id}", RequireAuth(h.DeleteUser))
+	mux.HandleFunc("POST /api/users/invite", RequireAuth(h.Invite))
 }
 
 // Register handles first admin registration.
@@ -386,6 +389,80 @@ func (h *Handler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// Invite creates a new user with a temporary password (admin only).
+func (h *Handler) Invite(w http.ResponseWriter, r *http.Request) {
+	currentUser, ok := UserFromContext(r.Context())
+	if !ok || currentUser.Role != "admin" {
+		httputil.WriteError(w, http.StatusForbidden, "forbidden", "Admin access required")
+		return
+	}
+
+	var req InviteRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httputil.WriteError(w, http.StatusBadRequest, "bad_request", "Invalid request body")
+		return
+	}
+
+	if req.Email == "" {
+		httputil.WriteError(w, http.StatusBadRequest, "bad_request", "Email is required")
+		return
+	}
+
+	// Default role to "viewer" if not provided
+	role := req.Role
+	if role == "" {
+		role = "viewer"
+	}
+
+	// Generate random 16-character temporary password
+	tempPassword, err := generateTempPassword(16)
+	if err != nil {
+		h.logger.Error("generate temp password failed", "error", err)
+		httputil.WriteError(w, http.StatusInternalServerError, "internal_error", "Failed to generate temporary password")
+		return
+	}
+
+	// Hash the temporary password
+	hash, err := h.service.HashPassword(tempPassword)
+	if err != nil {
+		h.logger.Error("hash password failed", "error", err)
+		httputil.WriteError(w, http.StatusInternalServerError, "internal_error", "Failed to hash password")
+		return
+	}
+
+	// Create the user
+	userID := GenerateID()
+	ctx := r.Context()
+	if err := h.repo.CreateUser(ctx, userID, req.Email, req.Name, hash, role); err != nil {
+		h.logger.Error("create user failed", "error", err)
+		httputil.WriteError(w, http.StatusInternalServerError, "internal_error", "Failed to create user")
+		return
+	}
+
+	httputil.JSON(w, http.StatusCreated, InviteResponse{
+		ID:           userID,
+		Email:        req.Email,
+		Name:         req.Name,
+		Role:         role,
+		TempPassword: tempPassword,
+	})
+}
+
+// generateTempPassword generates a random password of the given length
+// using alphanumeric characters and special characters.
+func generateTempPassword(length int) (string, error) {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*"
+	result := make([]byte, length)
+	for i := range result {
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+		if err != nil {
+			return "", err
+		}
+		result[i] = charset[n.Int64()]
+	}
+	return string(result), nil
 }
 
 func setRefreshCookie(w http.ResponseWriter, value string) {

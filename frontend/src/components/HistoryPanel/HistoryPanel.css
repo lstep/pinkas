@@ -1,0 +1,116 @@
+.history-panel {
+  width: 340px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  border-left: 1px solid var(--color-border);
+  overflow: hidden;
+  animation: slideIn 180ms ease;
+}
+
+@keyframes slideIn {
+  from { width: 0; opacity: 0; }
+  to { width: 340px; opacity: 1; }
+}
+
+.history-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--color-border-light);
+  flex-shrink: 0;
+}
+
+.history-panel-header h3 {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.history-panel-close {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 1.2rem;
+  padding: var(--sp-1);
+  line-height: 1;
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-fast);
+}
+
+.history-panel-close:hover {
+  color: var(--color-text);
+}
+
+.history-panel-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--sp-2);
+}
+
+.history-panel-empty {
+  padding: var(--sp-6);
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.history-snapshot-item {
+  display: flex;
+  flex-direction: column;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius-md);
+  transition: background var(--transition-fast);
+  margin-bottom: var(--sp-1);
+  border: 1px solid transparent;
+}
+
+.history-snapshot-item:hover {
+  background: var(--color-surface-hover);
+}
+
+.history-snapshot-item.selected {
+  background: var(--color-accent-subtle);
+  border-color: var(--color-accent);
+}
+
+.history-snapshot-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--sp-1);
+}
+
+.history-snapshot-time {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.history-snapshot-actions {
+  display: flex;
+  gap: var(--sp-1);
+}
+
+.history-snapshot-label {
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
+.history-loading {
+  padding: var(--sp-6);
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.history-error {
+  padding: var(--sp-3);
+  text-align: center;
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+}

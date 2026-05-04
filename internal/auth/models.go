@@ -53,6 +53,22 @@ type MeResponse struct {
 	User UserInfo `json:"user"`
 }
 
+// InviteRequest is the body for POST /api/users/invite.
+type InviteRequest struct {
+	Email string `json:"email"`
+	Name  string `json:"name,omitempty"`
+	Role  string `json:"role,omitempty"`
+}
+
+// InviteResponse is returned from POST /api/users/invite.
+type InviteResponse struct {
+	ID           string `json:"id"`
+	Email        string `json:"email"`
+	Name         string `json:"name,omitempty"`
+	Role         string `json:"role,omitempty"`
+	TempPassword string `json:"tempPassword"`
+}
+
 // jwtClaims defines the custom claims for our JWT tokens.
 type jwtClaims struct {
 	Email  string   `json:"email"`

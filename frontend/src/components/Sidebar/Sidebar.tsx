@@ -23,6 +23,7 @@ import { useAuthStore } from '../../store/auth'
 import { useTreeStore, TreeNode as TreeNodeType } from '../../store/tree'
 import { listPagesByDirectory, deletePage, updatePage, movePage } from '../../api/pages'
 import { listDirectoryChildren, deleteDirectory, updateDirectory, moveDirectory } from '../../api/directories'
+import { Button } from '../ui'
 import './Sidebar.css'
 
 interface SortableTreeNodeProps {
@@ -427,7 +428,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePageId, spaceId, onCreat
       <aside className="sidebar">
         <div className="sidebar-header">
           <h2>Pages</h2>
-          {!isViewer && <button className="btn-new" onClick={() => setShowNewInput(true)}>+</button>}
+          {!isViewer && (
+            <Button 
+              variant="primary" 
+              size="sm" 
+              onClick={() => setShowNewInput(true)}
+              className="btn-new"
+            >
+              +
+            </Button>
+          )}
         </div>
         {showNewInput && (
           <div className="new-page-input">

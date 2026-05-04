@@ -1,27 +1,36 @@
 .breadcrumb {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  border-bottom: 1px solid #e9ecef;
-  font-size: 13px;
-  background: #fff;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-4);
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--text-sm);
+  background: var(--color-surface);
+  flex-shrink: 0;
 }
 
 .breadcrumb a {
-  color: #228be6;
+  color: var(--color-primary);
   text-decoration: none;
+  transition: color var(--transition-fast);
 }
 
 .breadcrumb a:hover {
+  color: var(--color-primary-hover);
   text-decoration: underline;
 }
 
-.breadcrumb-sep {
-  color: #adb5bd;
+.breadcrumb-separator {
+  color: var(--color-text-muted);
+  font-weight: 300;
 }
 
 .breadcrumb-current {
-  color: #495057;
+  color: var(--color-text);
   font-weight: 500;
+}
+
+.breadcrumb-loading {
+  color: var(--color-text-muted);
+  font-style: italic;
 }

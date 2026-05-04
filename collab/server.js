@@ -18,6 +18,8 @@ async function callInternal(path, options = {}) {
 }
 
 const server = new Server({
+  gc: false,
+
   async onLoadDocument({ documentName }) {
     console.log('[onLoadDocument] loading:', documentName)
     const { status, data: body } = await callInternal(
@@ -74,6 +76,38 @@ const server = new Server({
   },
 })
 
+// Set a 5-minute auto-save interval
+const AUTO_SAVE_INTERVAL = 5 * 60 * 1000 // 5 minutes
+
+setInterval(async () => {
+  try {
+    if (server.documents && server.documents.size > 0) {
+      console.log(`[auto-save] saving ${server.documents.size} active documents`)
+      for (const [documentName, connection] of server.documents) {
+        try {
+          const snapshot = Buffer.from(Y.encodeStateAsUpdate(connection.document))
+          const markdown = yjsToMarkdown(connection.document)
+
+          await callInternal('/internal/save', {
+            method: 'POST',
+            body: JSON.stringify({
+              docId: documentName,
+              markdown,
+              yjsSnapshot: snapshot.toString('base64'),
+              authorId: 'system',
+            }),
+          })
+          console.log(`[auto-save] saved: ${documentName}`)
+        } catch (err) {
+          console.error(`[auto-save] failed for ${documentName}:`, err.message)
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[auto-save] error:', err.message)
+  }
+}, AUTO_SAVE_INTERVAL)
+
 // Yjs → ProseMirror → Markdown conversion
 function yjsToMarkdown(ydoc) {
   try {
@@ -87,12 +121,69 @@ function yjsToMarkdown(ydoc) {
 
 // Health endpoint
 const healthServer = http.createServer((req, res) => {
-  if (req.url === '/health') {
-    res.writeHead(200, { 'Content-Type': 'application/json' })
+  // Set CORS headers for local communication
+  res.setHeader('Content-Type', 'application/json')
+
+  if (req.url === '/health' && req.method === 'GET') {
+    res.writeHead(200)
     res.end(JSON.stringify({ status: 'ok' }))
+  } else if (req.url === '/internal/restore' && req.method === 'POST') {
+    let body = ''
+    req.on('data', chunk => { body += chunk })
+    req.on('end', async () => {
+      try {
+        const { docId, yjsSnapshot } = JSON.parse(body)
+        if (!docId || !yjsSnapshot) {
+          res.writeHead(400)
+          res.end(JSON.stringify({ error: 'docId and yjsSnapshot required' }))
+          return
+        }
+
+        // Get the managed document from Hocuspocus
+        const hocuspocusDoc = server.documents.get(docId)
+        if (!hocuspocusDoc) {
+          res.writeHead(200)
+          res.end(JSON.stringify({ status: 'ok', note: 'no active document' }))
+          return
+        }
+
+        const ydoc = hocuspocusDoc.document
+
+        // Create a new Y.Doc with the snapshot and apply its state
+        const targetDoc = new Y.Doc()
+        const buffer = Buffer.from(yjsSnapshot, 'base64')
+        Y.applyUpdate(targetDoc, new Uint8Array(buffer))
+        
+        // Get the full state of the target document
+        const targetUpdate = Y.encodeStateAsUpdate(targetDoc)
+
+        // Apply to the managed document — this broadcasts to all connected clients
+        Y.applyUpdate(ydoc, targetUpdate)
+
+        // Save markdown to disk via Go API
+        const markdown = yjsToMarkdown(ydoc)
+        await callInternal('/internal/save', {
+          method: 'POST',
+          body: JSON.stringify({
+            docId,
+            markdown,
+            yjsSnapshot,
+            authorId: 'system',
+          }),
+        })
+
+        console.log(`[restore] restored document: ${docId}`)
+        res.writeHead(200)
+        res.end(JSON.stringify({ status: 'ok' }))
+      } catch (err) {
+        console.error('[restore] error:', err.message)
+        res.writeHead(500)
+        res.end(JSON.stringify({ error: err.message }))
+      }
+    })
   } else {
     res.writeHead(404)
-    res.end()
+    res.end(JSON.stringify({ error: 'not found' }))
   }
 })
 

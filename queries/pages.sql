@@ -50,3 +50,5 @@ SELECT id, space_id, directory_id, title, slug, position, created_by, created_at
 FROM pages
 WHERE space_id = ? AND slug LIKE ?
 ORDER BY slug;
+
+

@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/mostdoc/mostdoc/internal/attachments"
 	"github.com/mostdoc/mostdoc/internal/auth"
 	"github.com/mostdoc/mostdoc/internal/db"
 	"github.com/mostdoc/mostdoc/internal/directories"
@@ -36,6 +37,11 @@ func main() {
 	}
 
 	socketPath := os.Getenv("SOCKET_PATH")
+
+	collabURL := os.Getenv("COLLAB_URL")
+	if collabURL == "" {
+		collabURL = "http://localhost:3002"
+	}
 
 	database, err := db.Open(dataDir)
 	if err != nil {
@@ -104,12 +110,14 @@ func main() {
 	directoriesHandler = directories.NewRESTHandler(directoriesRepo, logger, sseHub, permResolver)
 
 	mux := http.NewServeMux()
-	pages.RegisterRoutes(mux, pagesRepo, logger, dataDir, authService, sseHub, permResolver)
+	pages.RegisterRoutes(mux, pagesRepo, logger, dataDir, authService, sseHub, permResolver, collabURL)
 	authHandler.RegisterRoutes(mux)
 	spacesHandler.RegisterRoutes(mux)
 	directoriesHandler.RegisterRESTRoutes(mux)
 	groupsHandler.RegisterRoutes(mux)
 	permHandler.RegisterRoutes(mux)
+	attachmentsHandler := attachments.NewHandler(logger, dataDir, permResolver)
+	attachmentsHandler.RegisterRoutes(mux)
 	sseHandler.RegisterRoutes(mux)
 
 	// Wrap with auth middleware

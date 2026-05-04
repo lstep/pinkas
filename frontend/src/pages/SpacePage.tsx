@@ -6,6 +6,10 @@ import { useTreeStore, TreeNode } from '../store/tree'
 import { useEditorStore } from '../store/editor'
 import { Sidebar } from '../components/Sidebar/Sidebar'
 import { Breadcrumb } from '../components/Breadcrumb/Breadcrumb'
+import { SearchBar } from '../components/SearchBar'
+import { Button, Badge, Modal } from '../components/ui'
+import { ShareModal } from '../components/ShareModal/ShareModal'
+import { HistoryPanel } from '../components/HistoryPanel'
 import { listSpaces, listRootPages, createPage, getPageBySlug, Space } from '../api/pages'
 import { listRootDirectories, createDirectory } from '../api/directories'
 import { connectSSE, disconnectSSE } from '../api/sse'
@@ -30,6 +34,8 @@ export function SpacePage() {
   const [newPageParentId, setNewPageParentId] = useState<string | null>(null)
   const [showNewPageInput, setShowNewPageInput] = useState(false)
   const [newPageTitle, setNewPageTitle] = useState('')
+  const [showShareModal, setShowShareModal] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
 
   // Load space, root directories, and root pages
   useEffect(() => {
@@ -209,11 +215,24 @@ export function SpacePage() {
   }, [space, navigate, addNode])
 
   if (loading) {
-    return <div className="space-page"><p>Loading...</p></div>
+    return (
+      <div className="space-page">
+        <div className="space-loading">
+          <div className="skeleton" style={{ width: 200, height: 24, marginBottom: 16 }} />
+          <div className="skeleton" style={{ width: 150, height: 16 }} />
+        </div>
+      </div>
+    )
   }
 
   if (!space) {
-    return <div className="space-page"><p>No spaces found</p></div>
+    return (
+      <div className="space-page">
+        <div className="space-empty">
+          <p>No spaces found</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -222,13 +241,27 @@ export function SpacePage() {
         <div className="space-header-left">
           <h1>{space.name}</h1>
         </div>
+        <div className="space-header-center">
+          <SearchBar />
+        </div>
         <div className="space-header-right">
           <span className="user-name">{user?.name || user?.email}</span>
-          <span className={`role-badge role-${user?.role || 'unknown'}`}>{user?.role || 'unknown'}</span>
+          <Badge variant={user?.role as 'admin' | 'editor' | 'viewer' || 'default'}>
+            {user?.role || 'unknown'}
+          </Badge>
           {user?.role === 'admin' && (
-            <button onClick={() => navigate('/settings')} className="btn-settings">Settings</button>
+            <Button variant="ghost" size="sm" onClick={() => navigate('/settings')}>
+              Settings
+            </Button>
           )}
-          <button onClick={logout} className="btn-logout">Logout</button>
+          {activePageId && (
+            <Button variant="ghost" size="sm" onClick={() => setShowShareModal(true)}>
+              Share
+            </Button>
+          )}
+          <Button variant="ghost" size="sm" onClick={logout}>
+            Logout
+          </Button>
         </div>
       </header>
       <div className="space-body">
@@ -241,45 +274,76 @@ export function SpacePage() {
         <div className="space-content">
           <Breadcrumb pageId={activePageId} spaceSlug={space.slug} />
           {activePageId ? (
-            <CollaborativeEditor key={activePageId} />
+            <CollaborativeEditor key={activePageId} onToggleHistory={() => setShowHistory(v => !v)} />
           ) : (
             <div className="empty-page">
               <p>Select a page from the sidebar</p>
               {user?.role !== 'viewer' && (
-                <button
-                  className="btn-primary"
+                <Button
+                  variant="primary"
                   onClick={() => {
                     setNewPageParentId(null)
                     setShowNewPageInput(true)
                   }}
                 >
                   Create first page
-                </button>
+                </Button>
               )}
             </div>
           )}
         </div>
+        {activePageId && showHistory && (
+          <HistoryPanel
+            pageId={activePageId}
+            isOpen={showHistory}
+            onClose={() => setShowHistory(false)}
+          />
+        )}
       </div>
-      {showNewPageInput && user?.role !== 'viewer' && (
-        <div className="modal-overlay" onClick={() => setShowNewPageInput(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>New Page</h3>
-            <input
-              value={newPageTitle}
-              onChange={(e) => setNewPageTitle(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleCreatePage(newPageTitle, newPageParentId)
-                if (e.key === 'Escape') setShowNewPageInput(false)
-              }}
-              placeholder="Page title..."
-              autoFocus
-            />
-            <div className="modal-actions">
-              <button onClick={() => setShowNewPageInput(false)}>Cancel</button>
-              <button className="btn-primary" onClick={() => handleCreatePage(newPageTitle, newPageParentId)}>Create</button>
-            </div>
-          </div>
-        </div>
+      
+      <Modal
+        isOpen={showNewPageInput && user?.role !== 'viewer'}
+        onClose={() => setShowNewPageInput(false)}
+        title="New Page"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowNewPageInput(false)}>
+              Cancel
+            </Button>
+            <Button 
+              variant="primary" 
+              onClick={() => handleCreatePage(newPageTitle, newPageParentId)}
+            >
+              Create
+            </Button>
+          </>
+        }
+      >
+        <input
+          value={newPageTitle}
+          onChange={(e) => setNewPageTitle(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') handleCreatePage(newPageTitle, newPageParentId)
+            if (e.key === 'Escape') setShowNewPageInput(false)
+          }}
+          placeholder="Page title..."
+          autoFocus
+          style={{ width: '100%' }}
+        />
+      </Modal>
+
+      {/* Share Modal */}
+      {activePageId && space && (
+        <ShareModal
+          isOpen={showShareModal}
+          onClose={() => setShowShareModal(false)}
+          targetType="page"
+          targetId={activePageId}
+          targetTitle={(() => {
+            const node = Object.values(nodes).find((n) => n.id === activePageId)
+            return node?.title || 'Untitled Page'
+          })()}
+        />
       )}
     </div>
   )

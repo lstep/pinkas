@@ -8,6 +8,7 @@ sql:
       - "migrations/004_pages_enrich.up.sql"
       - "migrations/005_split_directories_pages.up.sql"
       - "migrations/006_permissions.up.sql"
+      - "migrations/007_snapshot_index.up.sql"
     queries: "queries/"
     gen:
       go:

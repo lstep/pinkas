@@ -73,6 +73,26 @@ export interface User {
   role: string
 }
 
+export interface InviteResponse {
+  id: string
+  email: string
+  name: string
+  role: string
+  tempPassword: string
+}
+
+export async function inviteUser(email: string, name?: string, role?: string): Promise<InviteResponse> {
+  const doFetch = () =>
+    fetch(`${API_BASE}/users/invite`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ email, name, role }),
+    })
+  const res = await doFetch()
+  await handleResponse(res, doFetch)
+  return await res.json()
+}
+
 export async function listUsers(): Promise<User[]> {
   const doFetch = () => fetch(`${API_BASE}/users`, { headers: getHeaders() })
   const res = await doFetch()

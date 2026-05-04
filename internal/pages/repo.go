@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	sqlc "github.com/mostdoc/mostdoc/internal/db/query"
@@ -17,6 +18,8 @@ type Snapshot struct {
 	Markdown    string
 	AuthorID    string
 	IsCompacted bool
+	Label       string
+	CreatedAt   int64
 }
 
 // Repository wraps sqlc queries for page operations.
@@ -158,14 +161,29 @@ func (r *Repository) SaveSnapshot(ctx context.Context, pageID, markdown string, 
 	return nil
 }
 
+// SaveSnapshotWithLabel inserts a page snapshot with a label.
+func (r *Repository) SaveSnapshotWithLabel(ctx context.Context, pageID, markdown string, yjsSnapshot []byte, authorID, label string) (string, error) {
+	id := uuid.New().String()
+	_, err := r.conn.ExecContext(ctx,
+		"INSERT INTO page_snapshots (id, page_id, yjs_snapshot, markdown, author_id, label) VALUES (?, ?, ?, ?, ?, ?)",
+		id, pageID, yjsSnapshot, markdown, authorID, label,
+	)
+	if err != nil {
+		return "", fmt.Errorf("insert snapshot: %w", err)
+	}
+	return id, nil
+}
+
 // GetLatestSnapshot fetches the most recent snapshot for a page.
 func (r *Repository) GetLatestSnapshot(ctx context.Context, pageID string) (*Snapshot, error) {
 	var s Snapshot
 	var compacted int
+	var label sql.NullString
+	var createdAt sql.NullInt64
 	err := r.conn.QueryRowContext(ctx,
-		"SELECT id, page_id, yjs_snapshot, markdown, author_id, is_compacted FROM page_snapshots WHERE page_id = ? ORDER BY created_at DESC LIMIT 1",
+		"SELECT id, page_id, yjs_snapshot, markdown, author_id, is_compacted, label, created_at FROM page_snapshots WHERE page_id = ? ORDER BY created_at DESC LIMIT 1",
 		pageID,
-	).Scan(&s.ID, &s.PageID, &s.YjsSnapshot, &s.Markdown, &s.AuthorID, &compacted)
+	).Scan(&s.ID, &s.PageID, &s.YjsSnapshot, &s.Markdown, &s.AuthorID, &compacted, &label, &createdAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -173,7 +191,68 @@ func (r *Repository) GetLatestSnapshot(ctx context.Context, pageID string) (*Sna
 		return nil, fmt.Errorf("get latest snapshot: %w", err)
 	}
 	s.IsCompacted = compacted != 0
+	s.Label = label.String
+	s.CreatedAt = createdAt.Int64
 	return &s, nil
+}
+
+// ListSnapshots returns all snapshots for a page, ordered by created_at DESC.
+func (r *Repository) ListSnapshots(ctx context.Context, pageID string) ([]*Snapshot, error) {
+	rows, err := r.conn.QueryContext(ctx,
+		"SELECT id, page_id, yjs_snapshot, markdown, author_id, is_compacted, label, created_at FROM page_snapshots WHERE page_id = ? ORDER BY created_at DESC",
+		pageID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list snapshots: %w", err)
+	}
+	defer rows.Close()
+
+	var result []*Snapshot
+	for rows.Next() {
+		var s Snapshot
+		var compacted int
+		var label sql.NullString
+		var createdAt sql.NullInt64
+		if err := rows.Scan(&s.ID, &s.PageID, &s.YjsSnapshot, &s.Markdown, &s.AuthorID, &compacted, &label, &createdAt); err != nil {
+			return nil, fmt.Errorf("scan snapshot: %w", err)
+		}
+		s.IsCompacted = compacted != 0
+		s.Label = label.String
+		s.CreatedAt = createdAt.Int64
+		result = append(result, &s)
+	}
+	return result, rows.Err()
+}
+
+// GetSnapshotByID fetches a single snapshot by its ID.
+func (r *Repository) GetSnapshotByID(ctx context.Context, snapshotID string) (*Snapshot, error) {
+	var s Snapshot
+	var compacted int
+	var label sql.NullString
+	var createdAt sql.NullInt64
+	err := r.conn.QueryRowContext(ctx,
+		"SELECT id, page_id, yjs_snapshot, markdown, author_id, is_compacted, label, created_at FROM page_snapshots WHERE id = ?",
+		snapshotID,
+	).Scan(&s.ID, &s.PageID, &s.YjsSnapshot, &s.Markdown, &s.AuthorID, &compacted, &label, &createdAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get snapshot: %w", err)
+	}
+	s.IsCompacted = compacted != 0
+	s.Label = label.String
+	s.CreatedAt = createdAt.Int64
+	return &s, nil
+}
+
+// DeleteSnapshotsForPage deletes all snapshots for a page.
+func (r *Repository) DeleteSnapshotsForPage(ctx context.Context, pageID string) error {
+	_, err := r.conn.ExecContext(ctx, "DELETE FROM page_snapshots WHERE page_id = ?", pageID)
+	if err != nil {
+		return fmt.Errorf("delete snapshots: %w", err)
+	}
+	return nil
 }
 
 // GetAncestors walks up the directory_id chain and returns all ancestor directories
@@ -216,4 +295,156 @@ func (r *Repository) GetAncestors(ctx context.Context, pageID string) ([]sqlc.Di
 	}
 
 	return ancestors, nil
+}
+
+// SearchResult represents a page search result with markdown content.
+type SearchResult struct {
+	Page     sqlc.Page
+	Markdown string
+}
+
+// escapeFTS5 escapes a query string for safe use in FTS5 MATCH.
+// It wraps the query in double quotes and escapes internal quotes.
+func escapeFTS5(query string) string {
+	if query == "" {
+		return ""
+	}
+	// Escape double quotes by doubling them
+	escaped := strings.ReplaceAll(query, `"`, `""`)
+	// Wrap in double quotes for phrase matching
+	return `"` + escaped + `"`
+}
+
+// SearchPages searches pages using FTS5 full-text search.
+// Returns empty results if FTS5 is not available (page_fts table doesn't exist).
+func (r *Repository) SearchPages(ctx context.Context, query string, limit int) ([]SearchResult, error) {
+	if query == "" {
+		return []SearchResult{}, nil
+	}
+
+	escapedQuery := escapeFTS5(query)
+
+	// Use raw SQL for FTS5 search since sqlc doesn't support virtual tables
+	rows, err := r.conn.QueryContext(ctx, `
+		SELECT p.id, p.space_id, p.directory_id, p.title, p.slug, p.position, p.created_by, p.created_at, p.updated_at, p.icon,
+		       (SELECT markdown FROM page_snapshots WHERE page_id = p.id ORDER BY created_at DESC LIMIT 1) AS markdown
+		FROM page_fts
+		JOIN pages p ON p.id = page_fts.page_id
+		WHERE page_fts MATCH ?
+		ORDER BY rank
+		LIMIT ?
+	`, escapedQuery, limit)
+	if err != nil {
+		// Gracefully handle case where page_fts doesn't exist (FTS5 not available)
+		if isTableNotExistError(err) {
+			return []SearchResult{}, nil
+		}
+		return nil, fmt.Errorf("search pages: %w", err)
+	}
+	defer rows.Close()
+
+	var results []SearchResult
+	for rows.Next() {
+		var p sqlc.Page
+		var markdown sql.NullString
+		err := rows.Scan(
+			&p.ID, &p.SpaceID, &p.DirectoryID, &p.Title, &p.Slug, &p.Position,
+			&p.CreatedBy, &p.CreatedAt, &p.UpdatedAt, &p.Icon, &markdown,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("scan search result: %w", err)
+		}
+		results = append(results, SearchResult{
+			Page:     p,
+			Markdown: markdown.String,
+		})
+	}
+
+	return results, rows.Err()
+}
+
+// isTableNotExistError checks if an error is due to a table not existing.
+func isTableNotExistError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	// SQLite error messages for missing table
+	return strings.Contains(errStr, "no such table") || strings.Contains(errStr, "page_fts")
+}
+
+// InitFTS5 initializes the FTS5 virtual table and triggers if FTS5 is available.
+// This should be called at application startup after migrations have run.
+func (r *Repository) InitFTS5(ctx context.Context) error {
+	// Check if FTS5 is available
+	var hasFTS5 int
+	err := r.conn.QueryRowContext(ctx, "SELECT CASE WHEN EXISTS (SELECT 1 FROM pragma_compile_options WHERE compile_options LIKE 'ENABLE_FTS5%') THEN 1 ELSE 0 END").Scan(&hasFTS5)
+	if err != nil {
+		return fmt.Errorf("check fts5 availability: %w", err)
+	}
+	if hasFTS5 == 0 {
+		// FTS5 not available, skip initialization
+		return nil
+	}
+
+	// Create FTS5 virtual table
+	_, err = r.conn.ExecContext(ctx, `
+		CREATE VIRTUAL TABLE IF NOT EXISTS page_fts USING fts5(
+			page_id UNINDEXED,
+			title,
+			content,
+			tokenize='porter'
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("create page_fts table: %w", err)
+	}
+
+	// Create trigger for INSERT on page_snapshots
+	_, err = r.conn.ExecContext(ctx, `
+		CREATE TRIGGER IF NOT EXISTS page_fts_ai
+		AFTER INSERT ON page_snapshots
+		BEGIN
+			INSERT OR REPLACE INTO page_fts (page_id, title, content)
+			SELECT 
+				new.page_id,
+				p.title,
+				new.markdown
+			FROM pages p
+			WHERE p.id = new.page_id;
+		END
+	`)
+	if err != nil {
+		return fmt.Errorf("create page_fts_ai trigger: %w", err)
+	}
+
+	// Create trigger for DELETE on page_snapshots
+	_, err = r.conn.ExecContext(ctx, `
+		CREATE TRIGGER IF NOT EXISTS page_fts_ad
+		AFTER DELETE ON page_snapshots
+		BEGIN
+			DELETE FROM page_fts
+			WHERE page_id = old.page_id
+			AND NOT EXISTS (
+				SELECT 1 FROM page_snapshots WHERE page_id = old.page_id LIMIT 1
+			);
+		END
+	`)
+	if err != nil {
+		return fmt.Errorf("create page_fts_ad trigger: %w", err)
+	}
+
+	// Create trigger for UPDATE on pages
+	_, err = r.conn.ExecContext(ctx, `
+		CREATE TRIGGER IF NOT EXISTS page_fts_au_pages
+		AFTER UPDATE OF title ON pages
+		BEGIN
+			UPDATE page_fts SET title = new.title WHERE page_id = new.id;
+		END
+	`)
+	if err != nil {
+		return fmt.Errorf("create page_fts_au_pages trigger: %w", err)
+	}
+
+	return nil
 }

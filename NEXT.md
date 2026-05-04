@@ -1,146 +1,85 @@
-# Next Steps: Iteration 3 (Multi-User Access Control)
+# Next Steps: Iteration 4 (History & Attachments)
 
-## What Was Done So Far
+## Completed Iterations
 
-### Iteration 1 (v1)
-- Single-page collaborative editor using Tiptap + Hocuspocus
-- JWT-based authentication
-- SQLite backend with `pages` table
-- Hocuspocus sidecar for real-time collaboration
-- Docker Compose setup
+### Iteration 1 — Collaborative Editor ✅
+- Single-page collaborative editor (Tiptap + Hocuspocus)
+- JWT auth, SQLite, Docker Compose
 
-### Iteration 2 (v2)
-- Multi-page wiki with directories and pages as separate tables
-- Split `directories` and `pages` — prevents pages nesting inside pages
-- Drag-and-drop reorder with persisted positions
-- SSE for real-time page updates
-- Emoji icon picker (24 emojis + remove) in sidebar context menu
-- Editor width fix: removed `max-width: 900px` constraint
+### Iteration 2 — Multi-Page Wiki ✅
+- Multi-page wiki with directories + pages
+- Drag-drop reorder, SSE updates, emoji picker
 - Full frontend refactor with Zustand tree store
-- Docker fixes: `sqlc.NullString` → `database/sql.NullString`
-- Removed duplicate `GenerateID()` function
 
-### Documentation
-- `PRD.md` — Full product requirements, Iteration 3 scope at lines 659-680
-- `docs/ARCHITECTURE.md` — System architecture
-- `docs/API.md` — API contract
-- `docs/SETUP.md` — Setup instructions
-- `docs/CONTEXT.md` — Decision log
+### Iteration 3 — Multi-User Access Control ✅
+- Schema: groups, group_members, permissions tables (migration 006)
+- Permission resolver (CTE ancestor walking) in `internal/permissions/`
+- Groups CRUD in `internal/groups/`
+- Permission enforcement on all pages/directories/spaces handlers
+- Frontend: Settings page with Users, Groups, Permissions tabs
+- Frontend: `POST /api/users/invite` (admin-only, returns temp password)
+- Frontend: Invite form in SettingsPage with temp password modal
+- Frontend: ShareModal (Notion-style in-page permission editor)
+- Sidebar read-only filtering, CollaborativeEditor read-only mode
+- Frontend admin.ts API client for all operations
 
-## Current State
+## What's Next
 
-### Done (Waiting for Plan Approval)
-- Plan for Iteration 3 drafted with user, including:
-  - Schema design: `users`, `groups`, `user_groups`, `permissions` (polymorphic `target_type` + `target_id`)
-  - Permission levels: `admin`, `editor`, `viewer`
-  - `default_permission` on `spaces` as fallback
-  - `permission_cache` table for performance
-  - Invite flow: admin calls `POST /api/users/invite` with random temp password, manual share
-  - Admin UI: dedicated `/settings` route with tabs for Users, Groups, Permissions
+### Iteration 4 — History & Attachments ✅ Complete
+**Phase A (backend): ✅ Complete**
+- Migration 007: snapshot index (created_at)
+- `internal/pages/history.go`: ListSnapshots, GetSnapshot, RestoreSnapshot handlers
+- REST routes: GET/POST /api/pages/{id}/snapshots[/{snapshotId}], POST .../restore
+- `collab/server.js`: gc:false, 5-min auto-save interval, POST /internal/restore endpoint
+- Sidecar restore: decodes snapshot, applies to Y.Doc, broadcasts to clients, saves markdown
+- Pre-restore snapshot taken automatically before restore
+- `COLLAB_URL` env var (default http://localhost:3002) wired in main.go
 
-### Blockers
-- **Plan not yet approved by user**
+**Phase B (frontend): ✅ Complete**
+- HistoryPanel component: slide-out panel listing snapshots with timestamps
+- DiffView component: modal showing snapshot content with line-numbered viewer
+- Restore button with confirmation (auto pre-restore backup)
+- Editor toolbar integration: "History" toggle button in status bar
+- `go build ./...` + `npx tsc --noEmit` + `npm run build` all pass clean
 
-## Key Technical Decisions
+**Phase C (attachments): ✅ Complete**
+- POST /api/attachments (multipart upload, 10MB limit, editor+ access)
+- GET /api/files/{pageId}/{filename} (auth-gated streaming, viewer+ access)
+- Path traversal protection (filepath.Base), MIME type validation
+- Frontend: Image extension, paste/drop handlers, toolbar upload button
+- Images saved to `data/attachments/{pageId}/{uuid}-{filename}`
+- `go build ./...` + `npx tsc --noEmit` pass clean
 
-### DI1 (updated): Directories/Pages Split
-Two separate tables instead of single polymorphic tree. Prevents pages nesting inside pages.
+### Iteration 5 — Search & Production Operations
+**Weeks 15–17**
 
-### Permission Model
-- Polymorphic `permissions` table over separate tables — identical semantics, single resolution query, single cache
-- Recursive CTE up directory ancestors for permission resolution
-- Group membership expansion
-- `permission_cache` table for fast repeated lookups
-- Cache invalidation on permission write
+- Full-text search (FTS5) with highlighted excerpts
+- Litestream continuous replication
+- HTTPS with automatic certificate renewal
+- Configurable snapshot retention per space
+- Rate limiting on auth endpoints
 
-### Authentication
-- JWT in httpOnly cookies
-- `UserContextKey` in context for handlers
-- Sidecar `/internal/auth` endpoint must return real permission level for WebSocket auth
+### Iteration 6 — MCP Integration
+**Weeks 18–20**
 
-### API Flow
-- `POST /api/users/invite` → creates user with random password → admin shares manually
-- All list endpoints filter by ≥ `viewer` permission
-- `default_permission` on spaces serves as fallback
-
-## Known Issues / Gotchas
-
-### Hardcoded Permissions
-- `internal/pages/handler.go:Auth` returns hardcoded `"admin"` for all authenticated users
-- Must be replaced with real permission resolution
-
-### Files to Not Commit
-- `data/wiki.db`
-- `frontend/dist/`
-- Both are in `.gitignore` but sometimes show as modified
-
-## Next Steps (Post-Approval)
-
-1. **Database**: Implement `006_permissions_groups` migration
-2. **Backend - Permissions**: Create `internal/permissions/` package
-   - Permission resolution CTE
-   - Cache management
-   - Middleware for route-level access control
-3. **Backend - Groups**: Create `internal/groups/` package
-4. **Backend - Auth**: Update `internal/auth/` with invite + user CRUD
-5. **Backend - Sidecar**: Update `/internal/auth` endpoint for real permissions
-6. **Backend - REST**: Add permission enforcement to all handlers
-   - `internal/pages/rest.go`
-   - `internal/directories/rest.go`
-   - Space handlers
-7. **Frontend - Settings**: Build `/settings` page
-   - Users tab (invite, list, edit)
-   - Groups tab (create, list, edit)
-   - Permissions tab (grant/revoke)
-8. **Frontend - Permission Awareness**:
-   - Sidebar tree filtering by permission
-   - Editor read-only mode for viewers
-   - Conditional UI based on permission level
+- AI agent access via Model Context Protocol
+- Scoped tokens, MCP audit logging
+- Per-space AI write lock
 
 ## File Map
 
-### Critical Files to Modify
-- `migrations/006_permissions_groups.up.sql` — new migration
-- `migrations/006_permissions_groups.down.sql` — rollback
-- `internal/permissions/` — new package (resolution, cache, middleware)
-- `internal/groups/` — new package
-- `internal/auth/handler.go` — add invite + user CRUD
-- `internal/auth/middleware.go` — permission middleware
-- `internal/pages/handler.go` — real `/internal/auth` endpoint
-- `internal/pages/rest.go` — enforce permissions
-- `internal/directories/rest.go` — enforce permissions
-- `frontend/src/settings/` — new routes/pages
-- `frontend/src/components/Sidebar/Sidebar.tsx` — permission filtering
-- `frontend/src/editor/CollaborativeEditor.tsx` — read-only mode
+### Key Files for Iteration 4
+- `internal/pages/handler.go` — Save/Restore/Cleanup endpoints
+- `migrations/` — snapshots table migration
+- `frontend/src/editor/CollaborativeEditor.tsx` — history panel integration
+- `frontend/src/components/HistoryPanel/` — new component
 
 ### Reference Files
-- `PRD.md` — requirements reference
-- `docs/API.md` — API contract reference
-- `docs/CONTEXT.md` — decision log reference
-- `migrations/005_split_directories_pages.up.sql` — current schema reference
+- `PRD.md` — Iteration 4 scope at lines 684-704
+- `docs/ARCHITECTURE.md` — System architecture
+- `docs/API.md` — API contract
+- `docs/CONTEXT.md` — Decision log
 
-## Relevant Code Snippets
-
-### Current Permission Stub (needs fixing)
-```go
-// internal/pages/handler.go:Auth
-// Returns hardcoded "admin" for all authenticated users
-// Must integrate with real permission resolution
-```
-
-### Context Key Pattern
-```go
-// internal/auth/middleware.go
-// UserContextKey used to store UserInfo in request context
-// UserInfo { UserID, Email, Name, IsAdmin }
-```
-
-### JWT Middleware
-```go
-// RequireAuth extracts JWT from cookie, verifies, stores UserInfo in context
-```
-
-## Session Notes
-- Date: 2026-04-25
-- Last action: User requested storing status to NEXT.md
-- Waiting for: Plan approval for Iteration 3
+## Known Issues / Gotchas
+- `data/wiki.db` and `frontend/dist/` are in `.gitignore` but sometimes show as modified
+- Design system refactor done: CSS custom properties + shared UI components (Button, Input, Modal, Card, Badge, Skeleton)

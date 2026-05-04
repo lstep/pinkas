@@ -24,9 +24,9 @@ type authResponse struct {
 	Permission string `json:"permission"`
 }
 
-func RegisterRoutes(mux *http.ServeMux, repo *Repository, logger *slog.Logger, dataDir string, authService *auth.Service, sseHub *sse.Hub, permResolver *permissions.Resolver) {
+func RegisterRoutes(mux *http.ServeMux, repo *Repository, logger *slog.Logger, dataDir string, authService *auth.Service, sseHub *sse.Hub, permResolver *permissions.Resolver, collabURL string) {
 	handler := &Handler{repo: repo, logger: logger, dataDir: dataDir, authService: authService, sseHub: sseHub, permResolver: permResolver}
-	restHandler := NewRESTHandler(repo, logger, sseHub, permResolver)
+	restHandler := NewRESTHandler(repo, logger, sseHub, permResolver, collabURL)
 
 	mux.HandleFunc("GET /internal/auth", handler.Auth)
 	mux.HandleFunc("POST /internal/save", handler.Save)
@@ -36,6 +36,9 @@ func RegisterRoutes(mux *http.ServeMux, repo *Repository, logger *slog.Logger, d
 	mux.HandleFunc("GET /health", handler.Health)
 
 	restHandler.RegisterRESTRoutes(mux)
+
+	// Search route (needs auth)
+	mux.HandleFunc("GET /api/pages/search", auth.RequireAuth(restHandler.Search))
 }
 
 type Handler struct {

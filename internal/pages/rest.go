@@ -59,11 +59,12 @@ type RESTHandler struct {
 	logger       *slog.Logger
 	sseHub       *sse.Hub
 	permResolver *permissions.Resolver
+	collabURL    string
 }
 
 // NewRESTHandler creates a new pages REST handler.
-func NewRESTHandler(repo *Repository, logger *slog.Logger, sseHub *sse.Hub, permResolver *permissions.Resolver) *RESTHandler {
-	return &RESTHandler{repo: repo, logger: logger, sseHub: sseHub, permResolver: permResolver}
+func NewRESTHandler(repo *Repository, logger *slog.Logger, sseHub *sse.Hub, permResolver *permissions.Resolver, collabURL string) *RESTHandler {
+	return &RESTHandler{repo: repo, logger: logger, sseHub: sseHub, permResolver: permResolver, collabURL: collabURL}
 }
 
 // RegisterRESTRoutes registers page REST routes on the mux.
@@ -77,6 +78,9 @@ func (h *RESTHandler) RegisterRESTRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/pages/{id}/move", auth.RequireAuth(h.Move))
 	mux.HandleFunc("GET /api/directories/{id}/pages", auth.RequireAuth(h.ListByDirectory))
 	mux.HandleFunc("GET /api/pages/{id}/breadcrumb", auth.RequireAuth(h.Breadcrumb))
+	mux.HandleFunc("GET /api/pages/{id}/snapshots", auth.RequireAuth(h.ListSnapshots))
+	mux.HandleFunc("GET /api/pages/{id}/snapshots/{snapshotId}", auth.RequireAuth(h.GetSnapshot))
+	mux.HandleFunc("POST /api/pages/{id}/restore", auth.RequireAuth(h.RestoreSnapshot))
 }
 
 // ListRoot returns root pages for a space (pages with no directory).

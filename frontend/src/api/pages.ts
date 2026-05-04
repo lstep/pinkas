@@ -214,3 +214,26 @@ export interface Space {
   slug: string
   default_permission: string
 }
+
+// ─── Search ────────────────────────────────────────────
+
+export interface SearchResult {
+  id: string
+  spaceId: string
+  title: string
+  slug: string
+  markdown: string
+  directoryId?: string | null
+  icon?: string | null
+}
+
+export async function searchPages(query: string, limit = 20): Promise<SearchResult[]> {
+  const doFetch = () =>
+    fetch(`${API_BASE}/pages/search?q=${encodeURIComponent(query)}&limit=${limit}`, {
+      headers: getHeaders(),
+    })
+  const res = await doFetch()
+  await handleResponse(res, doFetch)
+  const data = await res.json()
+  return data.results || []
+}
