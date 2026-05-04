@@ -36,6 +36,11 @@ async function uploadImage(file: File, pageId: string): Promise<string | null> {
     }
 
     const data = await res.json()
+    // Append token for <img> tag auth (browser can't set Authorization header on image requests)
+    if (token) {
+      const separator = data.url.includes('?') ? '&' : '?'
+      return `${data.url}${separator}token=${encodeURIComponent(token)}`
+    }
     return data.url
   } catch (err) {
     console.error('[upload] error:', err)

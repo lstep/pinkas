@@ -19,15 +19,17 @@ type Handler struct {
 	logger       *slog.Logger
 	dataDir      string
 	permResolver *permissions.Resolver
+	authService  *auth.Service
 }
 
-func NewHandler(logger *slog.Logger, dataDir string, permResolver *permissions.Resolver) *Handler {
-	return &Handler{logger: logger, dataDir: dataDir, permResolver: permResolver}
+func NewHandler(logger *slog.Logger, dataDir string, permResolver *permissions.Resolver, authService *auth.Service) *Handler {
+	return &Handler{logger: logger, dataDir: dataDir, permResolver: permResolver, authService: authService}
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/attachments", auth.RequireAuth(h.Upload))
-	mux.HandleFunc("GET /api/files/{pageId}/{filename}", auth.RequireAuth(h.Serve))
+	mux.HandleFunc("GET /api/files/{pageId}/{filename}", h.Serve)
+	mux.HandleFunc("GET /api/files/{pageId}/{filename}/", h.Serve)
 }
 
 func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
@@ -119,14 +121,27 @@ func (h *Handler) Serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, ok := auth.UserFromContext(r.Context())
+	// Authenticate: check Authorization header first, then ?token= query param
+	// (query param is needed for <img> tags which can't set custom headers)
+	var userInfo auth.UserInfo
+	var ok bool
+	var authErr error
+	userInfo, ok = auth.UserFromContext(r.Context())
 	if !ok {
-		httputil.WriteError(w, http.StatusUnauthorized, "unauthorized", "User not found in context")
-		return
+		token := r.URL.Query().Get("token")
+		if token == "" {
+			httputil.WriteError(w, http.StatusUnauthorized, "unauthorized", "Authentication required")
+			return
+		}
+		userInfo, authErr = h.authService.ParseAccessToken(token)
+		if authErr != nil {
+			httputil.WriteError(w, http.StatusUnauthorized, "unauthorized", "Invalid token")
+			return
+		}
 	}
 
-	if user.Role != "admin" {
-		level := h.permResolver.Resolve(r.Context(), user.ID, "page", pageId)
+	if userInfo.Role != "admin" {
+		level := h.permResolver.Resolve(r.Context(), userInfo.ID, "page", pageId)
 		if level < permissions.LevelViewer {
 			httputil.WriteError(w, http.StatusForbidden, "forbidden", "Viewer access required")
 			return

@@ -116,7 +116,7 @@ func main() {
 	directoriesHandler.RegisterRESTRoutes(mux)
 	groupsHandler.RegisterRoutes(mux)
 	permHandler.RegisterRoutes(mux)
-	attachmentsHandler := attachments.NewHandler(logger, dataDir, permResolver)
+	attachmentsHandler := attachments.NewHandler(logger, dataDir, permResolver, authService)
 	attachmentsHandler.RegisterRoutes(mux)
 	sseHandler.RegisterRoutes(mux)
 
