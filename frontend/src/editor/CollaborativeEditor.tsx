@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Collaboration from '@tiptap/extension-collaboration'
-import CollaborationCursor from '@tiptap/extension-collaboration-cursor'
+import CollaborationCaret from '@tiptap/extension-collaboration-caret'
 import Image from '@tiptap/extension-image'
 import { HocuspocusProvider } from '@hocuspocus/provider'
 import { useEditorStore } from '../store/editor'
@@ -54,19 +54,27 @@ function TipTapEditor({ provider, userName, permission, pageId }: { provider: Ho
     editable: !isReadOnly,
     extensions: [
       StarterKit.configure({
-        history: false,
+        undoRedo: false,
       }),
       Collaboration.configure({
         document: provider.document,
       }),
-      CollaborationCursor.configure({
+      CollaborationCaret.configure({
         provider,
         user: {
           name: userName,
           color: colors[Math.floor(Math.random() * colors.length)],
         },
       }),
-      Image,
+      Image.configure({
+        resize: {
+          enabled: true,
+          directions: ['bottom-right', 'bottom-left', 'top-right', 'top-left'],
+          minWidth: 50,
+          minHeight: 50,
+          alwaysPreserveAspectRatio: true,
+        },
+      }),
     ],
   })
 
