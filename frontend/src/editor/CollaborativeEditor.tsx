@@ -188,6 +188,14 @@ function TipTapEditor({ provider, userName, permission, pageId }: { provider: Ho
             >
               {'<>'}
             </button>
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+              className={editor.isActive('codeBlock') ? 'is-active' : ''}
+              title="Code block"
+            >
+              {'[]'}
+            </button>
 
             <span className="bubble-separator" />
 
