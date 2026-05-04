@@ -33,6 +33,35 @@
   color: #495057;
 }
 
+.role-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.role-badge.role-admin {
+  background: #d3f9d8;
+  color: #2b8a3e;
+}
+
+.role-badge.role-editor {
+  background: #d0ebff;
+  color: #1971c2;
+}
+
+.role-badge.role-viewer {
+  background: #fff3bf;
+  color: #e67700;
+}
+
+.role-badge.role-unknown {
+  background: #f8f9fa;
+  color: #868e96;
+}
+
 .btn-logout {
   font-size: 13px;
   color: #868e96;
@@ -43,6 +72,18 @@
 
 .btn-logout:hover {
   color: #e03131;
+}
+
+.btn-settings {
+  font-size: 13px;
+  color: #868e96;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.btn-settings:hover {
+  color: #228be6;
 }
 
 .space-body {

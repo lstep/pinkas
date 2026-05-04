@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/mostdoc/mostdoc/internal/auth"
+	"github.com/mostdoc/mostdoc/internal/permissions"
 	"github.com/mostdoc/mostdoc/internal/sse"
 )
 
@@ -23,9 +24,9 @@ type authResponse struct {
 	Permission string `json:"permission"`
 }
 
-func RegisterRoutes(mux *http.ServeMux, repo *Repository, logger *slog.Logger, dataDir string, authService *auth.Service, sseHub *sse.Hub) {
-	handler := &Handler{repo: repo, logger: logger, dataDir: dataDir, authService: authService, sseHub: sseHub}
-	restHandler := NewRESTHandler(repo, logger, sseHub)
+func RegisterRoutes(mux *http.ServeMux, repo *Repository, logger *slog.Logger, dataDir string, authService *auth.Service, sseHub *sse.Hub, permResolver *permissions.Resolver) {
+	handler := &Handler{repo: repo, logger: logger, dataDir: dataDir, authService: authService, sseHub: sseHub, permResolver: permResolver}
+	restHandler := NewRESTHandler(repo, logger, sseHub, permResolver)
 
 	mux.HandleFunc("GET /internal/auth", handler.Auth)
 	mux.HandleFunc("POST /internal/save", handler.Save)
@@ -38,11 +39,12 @@ func RegisterRoutes(mux *http.ServeMux, repo *Repository, logger *slog.Logger, d
 }
 
 type Handler struct {
-	repo        *Repository
-	logger      *slog.Logger
-	dataDir     string
-	authService *auth.Service
-	sseHub      *sse.Hub
+	repo         *Repository
+	logger       *slog.Logger
+	dataDir      string
+	authService  *auth.Service
+	sseHub       *sse.Hub
+	permResolver *permissions.Resolver
 }
 
 func (h *Handler) Save(w http.ResponseWriter, r *http.Request) {
@@ -105,11 +107,34 @@ func (h *Handler) Auth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Iteration 2: all authenticated users have admin permission
-	// Full permission resolution deferred to Iteration 3
+	// Resolve permission level
+	permission := "viewer"
+	if user.Role == "admin" {
+		permission = "admin"
+	} else if docID := r.URL.Query().Get("docId"); docID != "" && h.permResolver != nil {
+		level := h.permResolver.ResolvePage(r.Context(), user.ID, docID)
+		switch {
+		case level >= permissions.LevelAdmin:
+			permission = "admin"
+		case level >= permissions.LevelEditor:
+			permission = "editor"
+		case level >= permissions.LevelViewer:
+			permission = "viewer"
+		default:
+			permission = "none"
+		}
+	} else {
+		// No docId — return based on global role
+		if user.Role == "admin" {
+			permission = "admin"
+		} else {
+			permission = "viewer"
+		}
+	}
+
 	resp := authResponse{
 		UserID:     user.ID,
-		Permission: "admin",
+		Permission: permission,
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)

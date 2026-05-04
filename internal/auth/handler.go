@@ -1,12 +1,14 @@
 package auth
 
 import (
+	"database/sql"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
+	sqlc "github.com/mostdoc/mostdoc/internal/db/query"
 	"github.com/mostdoc/mostdoc/internal/httputil"
 )
 
@@ -29,6 +31,10 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/auth/refresh", h.Refresh)
 	mux.HandleFunc("POST /api/auth/logout", h.Logout)
 	mux.HandleFunc("GET /api/auth/me", RequireAuth(h.Me))
+	mux.HandleFunc("GET /api/users", RequireAuth(h.ListUsers))
+	mux.HandleFunc("GET /api/users/{id}", RequireAuth(h.GetUser))
+	mux.HandleFunc("PATCH /api/users/{id}", RequireAuth(h.UpdateUser))
+	mux.HandleFunc("DELETE /api/users/{id}", RequireAuth(h.DeleteUser))
 }
 
 // Register handles first admin registration.
@@ -194,7 +200,7 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// Me returns the current authenticated user.
+// Me returns the current authenticated user, querying the database for fresh data.
 func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	user, ok := UserFromContext(r.Context())
 	if !ok {
@@ -202,7 +208,184 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httputil.JSON(w, http.StatusOK, MeResponse{User: user})
+	// Query database for fresh user data (global_role may have changed since JWT was issued)
+	dbUser, err := h.repo.GetUserByID(r.Context(), user.ID)
+	if err != nil {
+		// Fall back to JWT claims if DB query fails
+		httputil.JSON(w, http.StatusOK, MeResponse{User: user})
+		return
+	}
+
+	freshUser := ScanUser(dbUser)
+	httputil.JSON(w, http.StatusOK, MeResponse{User: freshUser})
+}
+
+// UserResponse is the public user representation.
+type UserResponse struct {
+	ID    string `json:"id"`
+	Email string `json:"email"`
+	Name  string `json:"name,omitempty"`
+	Role  string `json:"role,omitempty"`
+}
+
+func toUserResponse(u sqlc.User) UserResponse {
+	name := ""
+	if u.Name.Valid {
+		name = u.Name.String
+	}
+	role := ""
+	if u.GlobalRole.Valid {
+		role = u.GlobalRole.String
+	}
+	return UserResponse{
+		ID:    u.ID,
+		Email: u.Email,
+		Name:  name,
+		Role:  role,
+	}
+}
+
+// ListUsers returns all users (admin only).
+func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
+	currentUser, ok := UserFromContext(r.Context())
+	if !ok || currentUser.Role != "admin" {
+		httputil.WriteError(w, http.StatusForbidden, "forbidden", "Admin access required")
+		return
+	}
+
+	users, err := h.repo.ListUsers(r.Context())
+	if err != nil {
+		h.logger.Error("list users failed", "error", err)
+		httputil.WriteError(w, http.StatusInternalServerError, "internal_error", "Failed to list users")
+		return
+	}
+
+	result := make([]UserResponse, 0, len(users))
+	for _, u := range users {
+		result = append(result, toUserResponse(u))
+	}
+
+	httputil.JSON(w, http.StatusOK, map[string]interface{}{"users": result})
+}
+
+// GetUser returns a single user.
+func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
+	currentUser, ok := UserFromContext(r.Context())
+	if !ok {
+		httputil.WriteError(w, http.StatusUnauthorized, "unauthorized", "Not authenticated")
+		return
+	}
+
+	id := r.PathValue("id")
+	if id == "" {
+		httputil.WriteError(w, http.StatusBadRequest, "bad_request", "User ID is required")
+		return
+	}
+
+	// Only admin or the user themselves can view their details
+	if currentUser.Role != "admin" && currentUser.ID != id {
+		httputil.WriteError(w, http.StatusForbidden, "forbidden", "Access denied")
+		return
+	}
+
+	user, err := h.repo.GetUserByID(r.Context(), id)
+	if err != nil {
+		httputil.WriteError(w, http.StatusNotFound, "not_found", "User not found")
+		return
+	}
+
+	httputil.JSON(w, http.StatusOK, toUserResponse(user))
+}
+
+// UpdateUserRequest is the body for PATCH /api/users/{id}.
+type UpdateUserRequest struct {
+	Name *string `json:"name,omitempty"`
+	Role *string `json:"role,omitempty"`
+}
+
+// UpdateUser updates a user's name or role.
+func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request) {
+	currentUser, ok := UserFromContext(r.Context())
+	if !ok {
+		httputil.WriteError(w, http.StatusUnauthorized, "unauthorized", "Not authenticated")
+		return
+	}
+
+	id := r.PathValue("id")
+	if id == "" {
+		httputil.WriteError(w, http.StatusBadRequest, "bad_request", "User ID is required")
+		return
+	}
+
+	var req UpdateUserRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httputil.WriteError(w, http.StatusBadRequest, "bad_request", "Invalid request body")
+		return
+	}
+
+	// Name: user can change their own name
+	if req.Name != nil {
+		if currentUser.ID != id {
+			httputil.WriteError(w, http.StatusForbidden, "forbidden", "Only the user can change their name")
+			return
+		}
+		name := sql.NullString{String: *req.Name, Valid: *req.Name != ""}
+		if err := h.repo.UpdateUserName(r.Context(), id, name); err != nil {
+			h.logger.Error("update user name failed", "error", err)
+			httputil.WriteError(w, http.StatusInternalServerError, "internal_error", "Failed to update user")
+			return
+		}
+	}
+
+	// Role: only admin can change roles
+	if req.Role != nil {
+		if currentUser.Role != "admin" {
+			httputil.WriteError(w, http.StatusForbidden, "forbidden", "Admin access required to change roles")
+			return
+		}
+		if err := h.repo.UpdateUserRole(r.Context(), id, sql.NullString{String: *req.Role, Valid: *req.Role != ""}); err != nil {
+			h.logger.Error("update user role failed", "error", err)
+			httputil.WriteError(w, http.StatusInternalServerError, "internal_error", "Failed to update user")
+			return
+		}
+	}
+
+	user, err := h.repo.GetUserByID(r.Context(), id)
+	if err != nil {
+		httputil.WriteError(w, http.StatusNotFound, "not_found", "User not found after update")
+		return
+	}
+
+	httputil.JSON(w, http.StatusOK, toUserResponse(user))
+}
+
+// DeleteUser soft-deletes a user (admin only).
+func (h *Handler) DeleteUser(w http.ResponseWriter, r *http.Request) {
+	currentUser, ok := UserFromContext(r.Context())
+	if !ok || currentUser.Role != "admin" {
+		httputil.WriteError(w, http.StatusForbidden, "forbidden", "Admin access required")
+		return
+	}
+
+	id := r.PathValue("id")
+	if id == "" {
+		httputil.WriteError(w, http.StatusBadRequest, "bad_request", "User ID is required")
+		return
+	}
+
+	// Prevent deleting yourself
+	if currentUser.ID == id {
+		httputil.WriteError(w, http.StatusBadRequest, "bad_request", "Cannot delete yourself")
+		return
+	}
+
+	if err := h.repo.DeleteUser(r.Context(), id); err != nil {
+		h.logger.Error("delete user failed", "error", err)
+		httputil.WriteError(w, http.StatusInternalServerError, "internal_error", "Failed to delete user")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func setRefreshCookie(w http.ResponseWriter, value string) {

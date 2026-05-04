@@ -8,17 +8,37 @@ import (
 
 	"github.com/mostdoc/mostdoc/internal/auth"
 	"github.com/mostdoc/mostdoc/internal/httputil"
+	"github.com/mostdoc/mostdoc/internal/permissions"
 )
 
 // Handler holds HTTP handlers for space endpoints.
 type Handler struct {
-	repo   *Repository
-	logger *slog.Logger
+	repo         *Repository
+	logger       *slog.Logger
+	permResolver *permissions.Resolver
 }
 
 // NewHandler creates a new spaces handler.
-func NewHandler(repo *Repository, logger *slog.Logger) *Handler {
-	return &Handler{repo: repo, logger: logger}
+func NewHandler(repo *Repository, logger *slog.Logger, permResolver *permissions.Resolver) *Handler {
+	return &Handler{repo: repo, logger: logger, permResolver: permResolver}
+}
+
+// checkAccess verifies the user has at least minLevel on the target.
+func (h *Handler) checkAccess(w http.ResponseWriter, r *http.Request, targetType, targetID string, minLevel int) bool {
+	user, ok := auth.UserFromContext(r.Context())
+	if !ok {
+		httputil.WriteError(w, http.StatusUnauthorized, "unauthorized", "Authentication required")
+		return false
+	}
+	if user.Role == "admin" {
+		return true
+	}
+	level := h.permResolver.Resolve(r.Context(), user.ID, targetType, targetID)
+	if level < minLevel {
+		httputil.WriteError(w, http.StatusForbidden, "forbidden", "Insufficient permissions")
+		return false
+	}
+	return true
 }
 
 // RegisterRoutes registers space routes on the mux.
@@ -47,8 +67,14 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	httputil.JSON(w, http.StatusOK, ListResponse{Spaces: result})
 }
 
-// Create creates a new space.
+// Create creates a new space (admin only).
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
+	user, _ := auth.UserFromContext(r.Context())
+	if user.Role != "admin" {
+		httputil.WriteError(w, http.StatusForbidden, "forbidden", "Admin access required to create spaces")
+		return
+	}
+
 	var req CreateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httputil.WriteError(w, http.StatusBadRequest, "bad_request", "Invalid request body")
@@ -85,6 +111,9 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 // Get returns a single space.
 func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
+	if !h.checkAccess(w, r, "space", r.PathValue("id"), permissions.LevelViewer) {
+		return
+	}
 	id := r.PathValue("id")
 	if id == "" {
 		httputil.WriteError(w, http.StatusBadRequest, "bad_request", "Space ID is required")
@@ -101,11 +130,17 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	httputil.JSON(w, http.StatusOK, ScanSpace(space))
 }
 
-// Update modifies a space.
+// Update modifies a space (admin only).
 func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if id == "" {
 		httputil.WriteError(w, http.StatusBadRequest, "bad_request", "Space ID is required")
+		return
+	}
+
+	user, _ := auth.UserFromContext(r.Context())
+	if user.Role != "admin" {
+		httputil.WriteError(w, http.StatusForbidden, "forbidden", "Admin access required to update spaces")
 		return
 	}
 
@@ -164,11 +199,17 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	httputil.JSON(w, http.StatusOK, ScanSpace(space))
 }
 
-// Delete removes a space.
+// Delete removes a space (admin only).
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if id == "" {
 		httputil.WriteError(w, http.StatusBadRequest, "bad_request", "Space ID is required")
+		return
+	}
+
+	user, _ := auth.UserFromContext(r.Context())
+	if user.Role != "admin" {
+		httputil.WriteError(w, http.StatusForbidden, "forbidden", "Admin access required to delete spaces")
 		return
 	}
 

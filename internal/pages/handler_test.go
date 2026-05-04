@@ -15,7 +15,8 @@ import (
 func setupTestHandler(t *testing.T) (*Handler, *Repository) {
 	t.Helper()
 
-	conn, err := db.Open(":memory:")
+	dataDir := t.TempDir()
+	conn, err := db.Open(dataDir)
 	if err != nil {
 		t.Fatalf("open test db: %v", err)
 	}
@@ -28,7 +29,7 @@ func setupTestHandler(t *testing.T) (*Handler, *Repository) {
 	repo := NewRepository(conn)
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
 	authService, _ := auth.NewService(auth.NewRepository(conn), "")
-	return &Handler{repo: repo, logger: logger, dataDir: t.TempDir(), authService: authService}, repo
+	return &Handler{repo: repo, logger: logger, dataDir: dataDir, authService: authService}, repo
 }
 
 // TestLoadWithNoSnapshot verifies the nil pointer regression fix.
@@ -39,7 +40,7 @@ func TestLoadWithNoSnapshot(t *testing.T) {
 
 	// Create a page but no snapshot
 	ctx := t.Context()
-	repo.CreatePage(ctx, "test-page-1", "default", "Test", "test", 0, "", "user-1", false, "")
+	repo.CreatePage(ctx, "test-page-1", "default", "Test", "test", 0, nil, "user-1", "")
 
 	req := httptest.NewRequest("GET", "/internal/load?docId=test-page-1", nil)
 	rr := httptest.NewRecorder()
@@ -64,7 +65,7 @@ func TestLoadWithSnapshot(t *testing.T) {
 	handler, repo := setupTestHandler(t)
 
 	ctx := t.Context()
-	repo.CreatePage(ctx, "test-page-2", "default", "Test", "test", 0, "", "user-1", false, "")
+	repo.CreatePage(ctx, "test-page-2", "default", "Test", "test", 0, nil, "user-1", "")
 	repo.SaveSnapshot(ctx, "test-page-2", "# Hello", []byte("yjs-data"), "user-1")
 
 	req := httptest.NewRequest("GET", "/internal/load?docId=test-page-2", nil)

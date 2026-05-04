@@ -19,6 +19,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { useAuthStore } from '../../store/auth'
 import { useTreeStore, TreeNode as TreeNodeType } from '../../store/tree'
 import { listPagesByDirectory, deletePage, updatePage, movePage } from '../../api/pages'
 import { listDirectoryChildren, deleteDirectory, updateDirectory, moveDirectory } from '../../api/directories'
@@ -68,6 +69,9 @@ function SortableTreeNode({ node, depth, activePageId, onCreatePage, onCreateDir
   }
 
   const isActive = node.id === activePageId
+  const currentUser = useAuthStore((s) => s.user)
+  const isAdmin = currentUser?.role === 'admin'
+  const isViewer = currentUser?.role === 'viewer'
 
   const handleToggle = async (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -222,29 +226,31 @@ function SortableTreeNode({ node, depth, activePageId, onCreatePage, onCreateDir
         ) : (
           <span className="tree-title">{displayTitle}</span>
         )}
-        <span
-          className="tree-menu-btn"
-          onClick={(e) => {
-            e.stopPropagation()
-            setMenuOpen(!menuOpen)
-          }}
-        >
-          ⋮
-        </span>
-        {menuOpen && (
-          <div className="tree-menu" ref={menuRef}>
-            <button onClick={() => { setIsEditing(true); setMenuOpen(false) }}>Rename</button>
-            <button onClick={() => { setShowIconPicker(true) }}>Change Icon</button>
-            {/* Only directories can have children */}
-            {isDirectory && (
-              <>
-                <button onClick={() => { setShowNewInput(true); setNewInputIsDir(false); setMenuOpen(false) }}>New Page</button>
-                <button onClick={() => { setShowNewInput(true); setNewInputIsDir(true); setMenuOpen(false) }}>New Directory</button>
-              </>
-            )}
-            <button onClick={handleDelete} className="danger">Delete</button>
-          </div>
-        )}
+          {!isViewer && (
+            <span
+              className="tree-menu-btn"
+              onClick={(e) => {
+                e.stopPropagation()
+                setMenuOpen(!menuOpen)
+              }}
+            >
+              ⋮
+            </span>
+          )}
+          {menuOpen && !isViewer && (
+            <div className="tree-menu" ref={menuRef}>
+              <button onClick={() => { setIsEditing(true); setMenuOpen(false) }}>Rename</button>
+              <button onClick={() => { setShowIconPicker(true) }}>Change Icon</button>
+              {/* Only directories can have children */}
+              {isDirectory && (
+                <>
+                  <button onClick={() => { setShowNewInput(true); setNewInputIsDir(false); setMenuOpen(false) }}>New Page</button>
+                  <button onClick={() => { setShowNewInput(true); setNewInputIsDir(true); setMenuOpen(false) }}>New Directory</button>
+                </>
+              )}
+              {isAdmin && <button onClick={handleDelete} className="danger">Delete</button>}
+            </div>
+          )}
         {showIconPicker && (
           <div className="icon-picker" ref={iconPickerRef}>
             {['📄','📁','🚀','⭐','🔥','💡','📝','📊','🎯','🔧','💻','🐛','✅','❌','⚠️','❓','💬','🔒','🌐','📅','📎','🏷️','📌','🔖'].map(icon => (
@@ -387,7 +393,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePageId, spaceId, onCreat
     }
   }
 
+  const currentUser = useAuthStore((s) => s.user)
+  const isViewer = currentUser?.role === 'viewer'
+
   const handleCreate = async () => {
+    if (isViewer) return
     if (!newTitle.trim() || !spaceId) {
       console.log('Create blocked: empty title or no spaceId', { newTitle, spaceId })
       return
@@ -417,7 +427,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePageId, spaceId, onCreat
       <aside className="sidebar">
         <div className="sidebar-header">
           <h2>Pages</h2>
-          <button className="btn-new" onClick={() => setShowNewInput(true)}>+</button>
+          {!isViewer && <button className="btn-new" onClick={() => setShowNewInput(true)}>+</button>}
         </div>
         {showNewInput && (
           <div className="new-page-input">

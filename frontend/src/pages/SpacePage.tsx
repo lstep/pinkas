@@ -17,6 +17,8 @@ export function SpacePage() {
   const user = useAuthStore((s) => s.user)
   const logout = useAuthStore((s) => s.logout)
   const accessToken = useAuthStore((s) => s.accessToken)
+
+
   const setSpaceId = useTreeStore((s) => s.setSpaceId)
   const setNodes = useTreeStore((s) => s.setNodes)
   const nodes = useTreeStore((s) => s.nodes)
@@ -92,6 +94,8 @@ export function SpacePage() {
     init()
   }, [spaceSlug])
 
+  const setPermission = useEditorStore((s) => s.setPermission)
+
   // Resolve current page from URL
   useEffect(() => {
     if (!space || !pagePath) return
@@ -110,6 +114,9 @@ export function SpacePage() {
         const page = await getPageBySlug(currentSpace.id, slug)
         setActivePageId(page.id)
         setDocId(page.id)
+        if ((page as any).permission) {
+          setPermission((page as any).permission)
+        }
       } catch (err) {
         console.error('Failed to load page by slug:', err)
       }
@@ -217,6 +224,10 @@ export function SpacePage() {
         </div>
         <div className="space-header-right">
           <span className="user-name">{user?.name || user?.email}</span>
+          <span className={`role-badge role-${user?.role || 'unknown'}`}>{user?.role || 'unknown'}</span>
+          {user?.role === 'admin' && (
+            <button onClick={() => navigate('/settings')} className="btn-settings">Settings</button>
+          )}
           <button onClick={logout} className="btn-logout">Logout</button>
         </div>
       </header>
@@ -234,20 +245,22 @@ export function SpacePage() {
           ) : (
             <div className="empty-page">
               <p>Select a page from the sidebar</p>
-              <button
-                className="btn-primary"
-                onClick={() => {
-                  setNewPageParentId(null)
-                  setShowNewPageInput(true)
-                }}
-              >
-                Create first page
-              </button>
+              {user?.role !== 'viewer' && (
+                <button
+                  className="btn-primary"
+                  onClick={() => {
+                    setNewPageParentId(null)
+                    setShowNewPageInput(true)
+                  }}
+                >
+                  Create first page
+                </button>
+              )}
             </div>
           )}
         </div>
       </div>
-      {showNewPageInput && (
+      {showNewPageInput && user?.role !== 'viewer' && (
         <div className="modal-overlay" onClick={() => setShowNewPageInput(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>New Page</h3>

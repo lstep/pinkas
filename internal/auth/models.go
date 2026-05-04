@@ -6,10 +6,10 @@ import (
 
 // UserInfo is stored in request context by the auth middleware.
 type UserInfo struct {
-	ID    string
-	Email string
-	Name  string
-	Role  string
+	ID    string `json:"id"`
+	Email string `json:"email"`
+	Name  string `json:"name"`
+	Role  string `json:"role"`
 }
 
 // contextKey is an unexported type to avoid collisions with third-party packages.

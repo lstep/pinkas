@@ -102,6 +102,32 @@ func Now() time.Time {
 	return time.Now().UTC()
 }
 
+// ListUsers returns all active users.
+func (r *Repository) ListUsers(ctx context.Context) ([]sqlc.User, error) {
+	return r.queries.ListUsers(ctx)
+}
+
+// UpdateUserRole updates a user's global role.
+func (r *Repository) UpdateUserRole(ctx context.Context, id string, role sql.NullString) error {
+	return r.queries.UpdateUserRole(ctx, sqlc.UpdateUserRoleParams{
+		GlobalRole: role,
+		ID:         id,
+	})
+}
+
+// UpdateUserName updates a user's name.
+func (r *Repository) UpdateUserName(ctx context.Context, id string, name sql.NullString) error {
+	return r.queries.UpdateUserName(ctx, sqlc.UpdateUserNameParams{
+		Name: name,
+		ID:   id,
+	})
+}
+
+// DeleteUser soft-deletes a user.
+func (r *Repository) DeleteUser(ctx context.Context, id string) error {
+	return r.queries.SoftDeleteUser(ctx, id)
+}
+
 // ScanUser converts a sqlc User row to a domain UserInfo.
 func ScanUser(u sqlc.User) UserInfo {
 	name := ""

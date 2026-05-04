@@ -1,6 +1,7 @@
 package pages
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/mostdoc/mostdoc/internal/auth"
 	"github.com/mostdoc/mostdoc/internal/httputil"
+	"github.com/mostdoc/mostdoc/internal/permissions"
 	sqlc "github.com/mostdoc/mostdoc/internal/db/query"
 	"github.com/mostdoc/mostdoc/internal/sse"
 )
@@ -24,6 +26,7 @@ type PageResponse struct {
 	Slug         string  `json:"slug"`
 	Position     int64   `json:"position"`
 	Icon         *string `json:"icon,omitempty"`
+	Permission   string  `json:"permission,omitempty"`
 	CreatedBy    string  `json:"createdBy,omitempty"`
 	CreatedAt    int64   `json:"createdAt,omitempty"`
 	UpdatedAt    int64   `json:"updatedAt,omitempty"`
@@ -52,14 +55,15 @@ type MovePageRequest struct {
 
 // RESTHandler holds HTTP handlers for page REST endpoints.
 type RESTHandler struct {
-	repo   *Repository
-	logger *slog.Logger
-	sseHub *sse.Hub
+	repo         *Repository
+	logger       *slog.Logger
+	sseHub       *sse.Hub
+	permResolver *permissions.Resolver
 }
 
 // NewRESTHandler creates a new pages REST handler.
-func NewRESTHandler(repo *Repository, logger *slog.Logger, sseHub *sse.Hub) *RESTHandler {
-	return &RESTHandler{repo: repo, logger: logger, sseHub: sseHub}
+func NewRESTHandler(repo *Repository, logger *slog.Logger, sseHub *sse.Hub, permResolver *permissions.Resolver) *RESTHandler {
+	return &RESTHandler{repo: repo, logger: logger, sseHub: sseHub, permResolver: permResolver}
 }
 
 // RegisterRESTRoutes registers page REST routes on the mux.
@@ -83,6 +87,10 @@ func (h *RESTHandler) ListRoot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !h.checkAccess(w, r, "space", spaceID, permissions.LevelViewer) {
+		return
+	}
+
 	pages, err := h.repo.ListRootPages(r.Context(), spaceID)
 	if err != nil {
 		h.logger.Error("list root pages failed", "error", err)
@@ -93,6 +101,12 @@ func (h *RESTHandler) ListRoot(w http.ResponseWriter, r *http.Request) {
 	result := make([]PageResponse, 0, len(pages))
 	for _, p := range pages {
 		result = append(result, toPageResponse(p))
+	}
+
+	// Filter by permission for non-admins
+	user, _ := auth.UserFromContext(r.Context())
+	if user.Role != "admin" {
+		result = h.filterPages(r.Context(), user.ID, result)
 	}
 
 	httputil.JSON(w, http.StatusOK, map[string]interface{}{"pages": result})
@@ -112,6 +126,10 @@ func (h *RESTHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user, _ := auth.UserFromContext(r.Context())
+
+	if !h.checkAccess(w, r, "space", req.SpaceID, permissions.LevelEditor) {
+		return
+	}
 
 	slug := slugify(req.Title)
 	// Handle slug collisions
@@ -156,13 +174,24 @@ func (h *RESTHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !h.checkAccess(w, r, "page", id, permissions.LevelViewer) {
+		return
+	}
+
 	page, err := h.repo.GetPage(r.Context(), id)
 	if err != nil {
 		httputil.WriteError(w, http.StatusNotFound, "not_found", "Page not found")
 		return
 	}
 
-	httputil.JSON(w, http.StatusOK, toPageResponse(page))
+	resp := toPageResponse(page)
+	user, _ := auth.UserFromContext(r.Context())
+	if user.Role == "admin" {
+		resp.Permission = "admin"
+	} else {
+		resp.Permission = h.userPermission(r.Context(), user.ID, "page", id)
+	}
+	httputil.JSON(w, http.StatusOK, resp)
 }
 
 // GetBySlug returns a page by slug within a space.
@@ -174,13 +203,24 @@ func (h *RESTHandler) GetBySlug(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !h.checkAccess(w, r, "space", spaceID, permissions.LevelViewer) {
+		return
+	}
+
 	page, err := h.repo.GetPageBySlug(r.Context(), spaceID, slug)
 	if err != nil {
 		httputil.WriteError(w, http.StatusNotFound, "not_found", "Page not found")
 		return
 	}
 
-	httputil.JSON(w, http.StatusOK, toPageResponse(page))
+	resp := toPageResponse(page)
+	user, _ := auth.UserFromContext(r.Context())
+	if user.Role == "admin" {
+		resp.Permission = "admin"
+	} else {
+		resp.Permission = h.userPermission(r.Context(), user.ID, "page", page.ID)
+	}
+	httputil.JSON(w, http.StatusOK, resp)
 }
 
 // Update modifies a page.
@@ -188,6 +228,10 @@ func (h *RESTHandler) Update(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if id == "" {
 		httputil.WriteError(w, http.StatusBadRequest, "bad_request", "Page ID is required")
+		return
+	}
+
+	if !h.checkAccess(w, r, "page", id, permissions.LevelEditor) {
 		return
 	}
 
@@ -263,6 +307,10 @@ func (h *RESTHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !h.checkAccess(w, r, "page", id, permissions.LevelAdmin) {
+		return
+	}
+
 	if err := h.repo.DeletePage(r.Context(), id); err != nil {
 		h.logger.Error("delete page failed", "error", err)
 		httputil.WriteError(w, http.StatusInternalServerError, "internal_error", "Failed to delete page")
@@ -285,6 +333,10 @@ func (h *RESTHandler) Move(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if id == "" {
 		httputil.WriteError(w, http.StatusBadRequest, "bad_request", "Page ID is required")
+		return
+	}
+
+	if !h.checkAccess(w, r, "page", id, permissions.LevelEditor) {
 		return
 	}
 
@@ -331,6 +383,10 @@ func (h *RESTHandler) ListByDirectory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !h.checkAccess(w, r, "directory", id, permissions.LevelViewer) {
+		return
+	}
+
 	pages, err := h.repo.ListPagesByDirectory(r.Context(), id)
 	if err != nil {
 		h.logger.Error("list pages by directory failed", "error", err)
@@ -343,6 +399,12 @@ func (h *RESTHandler) ListByDirectory(w http.ResponseWriter, r *http.Request) {
 		result = append(result, toPageResponse(p))
 	}
 
+	// Filter by permission for non-admins
+	user, _ := auth.UserFromContext(r.Context())
+	if user.Role != "admin" {
+		result = h.filterPages(r.Context(), user.ID, result)
+	}
+
 	httputil.JSON(w, http.StatusOK, map[string]interface{}{"pages": result})
 }
 
@@ -351,6 +413,10 @@ func (h *RESTHandler) Breadcrumb(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if id == "" {
 		httputil.WriteError(w, http.StatusBadRequest, "bad_request", "Page ID is required")
+		return
+	}
+
+	if !h.checkAccess(w, r, "page", id, permissions.LevelViewer) {
 		return
 	}
 
@@ -376,6 +442,56 @@ func (h *RESTHandler) Breadcrumb(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httputil.JSON(w, http.StatusOK, map[string]interface{}{"ancestors": result})
+}
+
+// filterPages filters out pages the user doesn't have viewer+ access to.
+func (h *RESTHandler) filterPages(ctx context.Context, userID string, pages []PageResponse) []PageResponse {
+	filtered := make([]PageResponse, 0, len(pages))
+	for _, p := range pages {
+		level := h.permResolver.Resolve(ctx, userID, "page", p.ID)
+		if level >= permissions.LevelViewer {
+			p.Permission = levelToName(level)
+			filtered = append(filtered, p)
+		}
+	}
+	return filtered
+}
+
+// userPermission returns the user's permission on a target as a string.
+func (h *RESTHandler) userPermission(ctx context.Context, userID, targetType, targetID string) string {
+	level := h.permResolver.Resolve(ctx, userID, targetType, targetID)
+	return levelToName(level)
+}
+
+func levelToName(level int) string {
+	switch {
+	case level >= permissions.LevelAdmin:
+		return "admin"
+	case level >= permissions.LevelEditor:
+		return "editor"
+	case level >= permissions.LevelViewer:
+		return "viewer"
+	default:
+		return "none"
+	}
+}
+
+// checkAccess verifies the user has at least minLevel on the target. Returns false and writes an error response if denied.
+func (h *RESTHandler) checkAccess(w http.ResponseWriter, r *http.Request, targetType, targetID string, minLevel int) bool {
+	user, ok := auth.UserFromContext(r.Context())
+	if !ok {
+		httputil.WriteError(w, http.StatusUnauthorized, "unauthorized", "Authentication required")
+		return false
+	}
+	if user.Role == "admin" {
+		return true
+	}
+	level := h.permResolver.Resolve(r.Context(), user.ID, targetType, targetID)
+	if level < minLevel {
+		httputil.WriteError(w, http.StatusForbidden, "forbidden", "Insufficient permissions")
+		return false
+	}
+	return true
 }
 
 func toPageResponse(p sqlc.Page) PageResponse {

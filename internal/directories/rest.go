@@ -1,6 +1,7 @@
 package directories
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/mostdoc/mostdoc/internal/auth"
 	"github.com/mostdoc/mostdoc/internal/httputil"
+	"github.com/mostdoc/mostdoc/internal/permissions"
 	sqlc "github.com/mostdoc/mostdoc/internal/db/query"
 	"github.com/mostdoc/mostdoc/internal/sse"
 )
@@ -22,6 +24,7 @@ type DirectoryResponse struct {
 	Slug      string  `json:"slug"`
 	Position  int64   `json:"position"`
 	Icon      *string `json:"icon,omitempty"`
+	Permission string `json:"permission,omitempty"`
 	CreatedBy string  `json:"createdBy,omitempty"`
 	CreatedAt int64   `json:"createdAt,omitempty"`
 	UpdatedAt int64   `json:"updatedAt,omitempty"`
@@ -50,14 +53,15 @@ type MoveDirectoryRequest struct {
 
 // RESTHandler holds HTTP handlers for directory REST endpoints.
 type RESTHandler struct {
-	repo   *Repository
-	logger *slog.Logger
-	sseHub *sse.Hub
+	repo         *Repository
+	logger       *slog.Logger
+	sseHub       *sse.Hub
+	permResolver *permissions.Resolver
 }
 
 // NewRESTHandler creates a new directories REST handler.
-func NewRESTHandler(repo *Repository, logger *slog.Logger, sseHub *sse.Hub) *RESTHandler {
-	return &RESTHandler{repo: repo, logger: logger, sseHub: sseHub}
+func NewRESTHandler(repo *Repository, logger *slog.Logger, sseHub *sse.Hub, permResolver *permissions.Resolver) *RESTHandler {
+	return &RESTHandler{repo: repo, logger: logger, sseHub: sseHub, permResolver: permResolver}
 }
 
 // RegisterRESTRoutes registers directory REST routes on the mux.
@@ -81,6 +85,10 @@ func (h *RESTHandler) ListRoot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !h.checkAccess(w, r, "space", spaceID, permissions.LevelViewer) {
+		return
+	}
+
 	directories, err := h.repo.ListRootDirectories(r.Context(), spaceID)
 	if err != nil {
 		h.logger.Error("list root directories failed", "error", err)
@@ -91,6 +99,12 @@ func (h *RESTHandler) ListRoot(w http.ResponseWriter, r *http.Request) {
 	result := make([]DirectoryResponse, 0, len(directories))
 	for _, d := range directories {
 		result = append(result, toDirectoryResponse(d))
+	}
+
+	// Filter by permission for non-admins
+	user, _ := auth.UserFromContext(r.Context())
+	if user.Role != "admin" {
+		result = h.filterDirectories(r.Context(), user.ID, result)
 	}
 
 	httputil.JSON(w, http.StatusOK, map[string]interface{}{"directories": result})
@@ -110,6 +124,10 @@ func (h *RESTHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user, _ := auth.UserFromContext(r.Context())
+
+	if !h.checkAccess(w, r, "space", req.SpaceID, permissions.LevelEditor) {
+		return
+	}
 
 	slug := slugify(req.Name)
 	// Handle slug collisions
@@ -154,13 +172,24 @@ func (h *RESTHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !h.checkAccess(w, r, "directory", id, permissions.LevelViewer) {
+		return
+	}
+
 	dir, err := h.repo.GetDirectory(r.Context(), id)
 	if err != nil {
 		httputil.WriteError(w, http.StatusNotFound, "not_found", "Directory not found")
 		return
 	}
 
-	httputil.JSON(w, http.StatusOK, toDirectoryResponse(dir))
+	resp := toDirectoryResponse(dir)
+	user, _ := auth.UserFromContext(r.Context())
+	if user.Role == "admin" {
+		resp.Permission = "admin"
+	} else {
+		resp.Permission = levelToName(h.permResolver.Resolve(r.Context(), user.ID, "directory", id))
+	}
+	httputil.JSON(w, http.StatusOK, resp)
 }
 
 // GetBySlug returns a directory by slug within a space.
@@ -172,13 +201,24 @@ func (h *RESTHandler) GetBySlug(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !h.checkAccess(w, r, "space", spaceID, permissions.LevelViewer) {
+		return
+	}
+
 	dir, err := h.repo.GetDirectoryBySlug(r.Context(), spaceID, slug)
 	if err != nil {
 		httputil.WriteError(w, http.StatusNotFound, "not_found", "Directory not found")
 		return
 	}
 
-	httputil.JSON(w, http.StatusOK, toDirectoryResponse(dir))
+	resp := toDirectoryResponse(dir)
+	user, _ := auth.UserFromContext(r.Context())
+	if user.Role == "admin" {
+		resp.Permission = "admin"
+	} else {
+		resp.Permission = levelToName(h.permResolver.Resolve(r.Context(), user.ID, "directory", dir.ID))
+	}
+	httputil.JSON(w, http.StatusOK, resp)
 }
 
 // Update modifies a directory.
@@ -186,6 +226,10 @@ func (h *RESTHandler) Update(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if id == "" {
 		httputil.WriteError(w, http.StatusBadRequest, "bad_request", "Directory ID is required")
+		return
+	}
+
+	if !h.checkAccess(w, r, "directory", id, permissions.LevelEditor) {
 		return
 	}
 
@@ -281,6 +325,10 @@ func (h *RESTHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !h.checkAccess(w, r, "directory", id, permissions.LevelAdmin) {
+		return
+	}
+
 	if err := h.repo.DeleteDirectory(r.Context(), id); err != nil {
 		h.logger.Error("delete directory failed", "error", err)
 		httputil.WriteError(w, http.StatusInternalServerError, "internal_error", "Failed to delete directory")
@@ -303,6 +351,10 @@ func (h *RESTHandler) Move(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if id == "" {
 		httputil.WriteError(w, http.StatusBadRequest, "bad_request", "Directory ID is required")
+		return
+	}
+
+	if !h.checkAccess(w, r, "directory", id, permissions.LevelEditor) {
 		return
 	}
 
@@ -380,6 +432,10 @@ func (h *RESTHandler) Children(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !h.checkAccess(w, r, "directory", id, permissions.LevelViewer) {
+		return
+	}
+
 	children, err := h.repo.ListChildren(r.Context(), id)
 	if err != nil {
 		h.logger.Error("list children failed", "error", err)
@@ -392,6 +448,12 @@ func (h *RESTHandler) Children(w http.ResponseWriter, r *http.Request) {
 		result = append(result, toDirectoryResponse(d))
 	}
 
+	// Filter by permission for non-admins
+	user, _ := auth.UserFromContext(r.Context())
+	if user.Role != "admin" {
+		result = h.filterDirectories(r.Context(), user.ID, result)
+	}
+
 	httputil.JSON(w, http.StatusOK, map[string]interface{}{"directories": result})
 }
 
@@ -400,6 +462,10 @@ func (h *RESTHandler) Breadcrumb(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if id == "" {
 		httputil.WriteError(w, http.StatusBadRequest, "bad_request", "Directory ID is required")
+		return
+	}
+
+	if !h.checkAccess(w, r, "directory", id, permissions.LevelViewer) {
 		return
 	}
 
@@ -416,6 +482,50 @@ func (h *RESTHandler) Breadcrumb(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httputil.JSON(w, http.StatusOK, map[string]interface{}{"ancestors": result})
+}
+
+// filterDirectories filters out directories the user doesn't have viewer+ access to.
+func (h *RESTHandler) filterDirectories(ctx context.Context, userID string, dirs []DirectoryResponse) []DirectoryResponse {
+	filtered := make([]DirectoryResponse, 0, len(dirs))
+	for _, d := range dirs {
+		level := h.permResolver.Resolve(ctx, userID, "directory", d.ID)
+		if level >= permissions.LevelViewer {
+			d.Permission = levelToName(level)
+			filtered = append(filtered, d)
+		}
+	}
+	return filtered
+}
+
+func levelToName(level int) string {
+	switch {
+	case level >= permissions.LevelAdmin:
+		return "admin"
+	case level >= permissions.LevelEditor:
+		return "editor"
+	case level >= permissions.LevelViewer:
+		return "viewer"
+	default:
+		return "none"
+	}
+}
+
+// checkAccess verifies the user has at least minLevel on the target.
+func (h *RESTHandler) checkAccess(w http.ResponseWriter, r *http.Request, targetType, targetID string, minLevel int) bool {
+	user, ok := auth.UserFromContext(r.Context())
+	if !ok {
+		httputil.WriteError(w, http.StatusUnauthorized, "unauthorized", "Authentication required")
+		return false
+	}
+	if user.Role == "admin" {
+		return true
+	}
+	level := h.permResolver.Resolve(r.Context(), user.ID, targetType, targetID)
+	if level < minLevel {
+		httputil.WriteError(w, http.StatusForbidden, "forbidden", "Insufficient permissions")
+		return false
+	}
+	return true
 }
 
 func toDirectoryResponse(d sqlc.Directory) DirectoryResponse {

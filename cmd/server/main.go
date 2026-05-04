@@ -13,7 +13,9 @@ import (
 	"github.com/mostdoc/mostdoc/internal/auth"
 	"github.com/mostdoc/mostdoc/internal/db"
 	"github.com/mostdoc/mostdoc/internal/directories"
+	"github.com/mostdoc/mostdoc/internal/groups"
 	"github.com/mostdoc/mostdoc/internal/pages"
+	"github.com/mostdoc/mostdoc/internal/permissions"
 	"github.com/mostdoc/mostdoc/internal/sse"
 	"github.com/mostdoc/mostdoc/internal/spaces"
 )
@@ -65,27 +67,49 @@ func main() {
 	}
 	authHandler := auth.NewHandler(authService, authRepo, logger)
 
-	// Spaces setup
+	// Groups setup
+	groupsRepo := groups.NewRepository(database)
+	groupsHandler := groups.NewHandler(groupsRepo, logger)
+
+	// Permissions setup
+	permRepo := permissions.NewRepository(database)
+	permHandler := permissions.NewHandler(permRepo, logger)
+
+	// Repos needed for the permission resolver
 	spacesRepo := spaces.NewRepository(database)
-	spacesHandler := spaces.NewHandler(spacesRepo, logger)
+	directoriesRepo := directories.NewRepository(database)
+	pagesRepo := pages.NewRepository(database)
+
+	// Permission resolver with callbacks for ancestor walking
+	permResolver := permissions.NewResolver(
+		permRepo,
+		directoriesRepo.GetDirectory,          // dirGet
+		spacesRepo.Get,                         // spaceGet
+		pagesRepo.GetPage,                      // pageGet
+		groupsRepo.ListUserGroups,              // listUG
+		logger,
+	)
+
+	// Spaces setup
+	spacesHandler := spaces.NewHandler(spacesRepo, logger, permResolver)
 
 	// Directories setup
-	directoriesRepo := directories.NewRepository(database)
-	directoriesHandler := directories.NewRESTHandler(directoriesRepo, logger, nil)
+	directoriesHandler := directories.NewRESTHandler(directoriesRepo, logger, nil, permResolver)
 
 	// SSE hub
 	sseHub := sse.NewHub(logger, 256)
 	sseHandler := sse.NewHandler(sseHub, logger)
 
 	// Update directories handler with SSE hub
-	directoriesHandler = directories.NewRESTHandler(directoriesRepo, logger, sseHub)
+	directoriesHandler = directories.NewRESTHandler(directoriesRepo, logger, sseHub, permResolver)
 
 	mux := http.NewServeMux()
-	pagesRepo := pages.NewRepository(database)
-	pages.RegisterRoutes(mux, pagesRepo, logger, dataDir, authService, sseHub)
+	pages.RegisterRoutes(mux, pagesRepo, logger, dataDir, authService, sseHub, permResolver)
 	authHandler.RegisterRoutes(mux)
 	spacesHandler.RegisterRoutes(mux)
 	directoriesHandler.RegisterRESTRoutes(mux)
+	groupsHandler.RegisterRoutes(mux)
+	permHandler.RegisterRoutes(mux)
 	sseHandler.RegisterRoutes(mux)
 
 	// Wrap with auth middleware

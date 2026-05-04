@@ -11,7 +11,7 @@ import (
 )
 
 const countUsers = `-- name: CountUsers :one
-SELECT COUNT(*) FROM users
+SELECT COUNT(*) FROM users WHERE deleted_at IS NULL
 `
 
 func (q *Queries) CountUsers(ctx context.Context) (int64, error) {
@@ -116,9 +116,9 @@ func (q *Queries) GetSetting(ctx context.Context, key string) (Setting, error) {
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, name, password_hash, global_role, created_at
+SELECT id, email, name, password_hash, global_role, created_at, deleted_at
 FROM users
-WHERE email = ?
+WHERE email = ? AND deleted_at IS NULL
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -131,14 +131,15 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.PasswordHash,
 		&i.GlobalRole,
 		&i.CreatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, name, password_hash, global_role, created_at
+SELECT id, email, name, password_hash, global_role, created_at, deleted_at
 FROM users
-WHERE id = ?
+WHERE id = ? AND deleted_at IS NULL
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
@@ -151,8 +152,84 @@ func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
 		&i.PasswordHash,
 		&i.GlobalRole,
 		&i.CreatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
+}
+
+const listUsers = `-- name: ListUsers :many
+SELECT id, email, name, password_hash, global_role, created_at, deleted_at
+FROM users
+WHERE deleted_at IS NULL
+ORDER BY email
+`
+
+func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
+	rows, err := q.db.QueryContext(ctx, listUsers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []User{}
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.Name,
+			&i.PasswordHash,
+			&i.GlobalRole,
+			&i.CreatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const softDeleteUser = `-- name: SoftDeleteUser :exec
+UPDATE users SET deleted_at = strftime('%s', 'now') WHERE id = ?
+`
+
+func (q *Queries) SoftDeleteUser(ctx context.Context, id string) error {
+	_, err := q.db.ExecContext(ctx, softDeleteUser, id)
+	return err
+}
+
+const updateUserName = `-- name: UpdateUserName :exec
+UPDATE users SET name = ? WHERE id = ? AND deleted_at IS NULL
+`
+
+type UpdateUserNameParams struct {
+	Name sql.NullString `json:"name"`
+	ID   string         `json:"id"`
+}
+
+func (q *Queries) UpdateUserName(ctx context.Context, arg UpdateUserNameParams) error {
+	_, err := q.db.ExecContext(ctx, updateUserName, arg.Name, arg.ID)
+	return err
+}
+
+const updateUserRole = `-- name: UpdateUserRole :exec
+UPDATE users SET global_role = ? WHERE id = ? AND deleted_at IS NULL
+`
+
+type UpdateUserRoleParams struct {
+	GlobalRole sql.NullString `json:"global_role"`
+	ID         string         `json:"id"`
+}
+
+func (q *Queries) UpdateUserRole(ctx context.Context, arg UpdateUserRoleParams) error {
+	_, err := q.db.ExecContext(ctx, updateUserRole, arg.GlobalRole, arg.ID)
+	return err
 }
 
 const upsertSetting = `-- name: UpsertSetting :exec

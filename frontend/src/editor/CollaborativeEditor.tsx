@@ -12,8 +12,10 @@ const colors = [
   '#958DF1', '#F98181', '#FBBC88', '#FAF594', '#70CFF8', '#94FADB', '#B9F18D',
 ]
 
-function TipTapEditor({ provider, userName }: { provider: HocuspocusProvider; userName: string }) {
+function TipTapEditor({ provider, userName, permission }: { provider: HocuspocusProvider; userName: string; permission: string }) {
+  const isReadOnly = permission === 'viewer' || permission === 'none'
   const editor = useEditor({
+    editable: !isReadOnly,
     extensions: [
       StarterKit.configure({
         history: false,
@@ -67,7 +69,7 @@ function TipTapEditor({ provider, userName }: { provider: HocuspocusProvider; us
 }
 
 export const CollaborativeEditor: React.FC = () => {
-  const { providerUrl, docId } = useEditorStore()
+  const { providerUrl, docId, permission } = useEditorStore()
   const accessToken = useAuthStore((s) => s.accessToken)
   const user = useAuthStore((s) => s.user)
   const providerRef = useRef<HocuspocusProvider | null>(null)
@@ -109,8 +111,9 @@ export const CollaborativeEditor: React.FC = () => {
       <div className="editor-status-bar">
         <span className={`status-dot ${status}`} title={status} />
         <span className="status-text">{status === 'connected' ? 'Live' : status}</span>
+        {(permission === 'viewer' || permission === 'none') && <span className="status-ro">Read-only</span>}
       </div>
-      <TipTapEditor provider={provider} userName={userName} />
+      <TipTapEditor provider={provider} userName={userName} permission={permission} />
     </div>
   )
 }

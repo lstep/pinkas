@@ -21,6 +21,17 @@ type Directory struct {
 	UpdatedAt sql.NullInt64  `json:"updated_at"`
 }
 
+type Group struct {
+	ID        string        `json:"id"`
+	Name      string        `json:"name"`
+	CreatedAt sql.NullInt64 `json:"created_at"`
+}
+
+type GroupMember struct {
+	GroupID string `json:"group_id"`
+	UserID  string `json:"user_id"`
+}
+
 type Page struct {
 	ID          string         `json:"id"`
 	SpaceID     sql.NullString `json:"space_id"`
@@ -43,6 +54,18 @@ type PageSnapshot struct {
 	CreatedAt   sql.NullInt64  `json:"created_at"`
 	Label       sql.NullString `json:"label"`
 	IsCompacted sql.NullInt64  `json:"is_compacted"`
+}
+
+type Permission struct {
+	ID          string         `json:"id"`
+	TargetType  string         `json:"target_type"`
+	TargetID    string         `json:"target_id"`
+	GranteeType string         `json:"grantee_type"`
+	GranteeID   string         `json:"grantee_id"`
+	Level       int64          `json:"level"`
+	CreatedBy   sql.NullString `json:"created_by"`
+	CreatedAt   sql.NullInt64  `json:"created_at"`
+	UpdatedAt   sql.NullInt64  `json:"updated_at"`
 }
 
 type RefreshToken struct {
@@ -76,4 +99,5 @@ type User struct {
 	PasswordHash string         `json:"password_hash"`
 	GlobalRole   sql.NullString `json:"global_role"`
 	CreatedAt    sql.NullInt64  `json:"created_at"`
+	DeletedAt    sql.NullInt64  `json:"deleted_at"`
 }

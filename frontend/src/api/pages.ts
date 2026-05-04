@@ -32,6 +32,9 @@ async function refreshToken(): Promise<void> {
       if (data.token?.accessToken) {
         useAuthStore.setState({ accessToken: data.token.accessToken })
       }
+      if (data.user) {
+        useAuthStore.setState({ user: data.user })
+      }
     })
     .finally(() => {
       isRefreshing = false

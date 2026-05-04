@@ -13,7 +13,8 @@ import (
 )
 
 func setupTestAuth(t *testing.T) (*Handler, func()) {
-	conn, err := db.Open(":memory:")
+	dataDir := t.TempDir()
+	conn, err := db.Open(dataDir)
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
