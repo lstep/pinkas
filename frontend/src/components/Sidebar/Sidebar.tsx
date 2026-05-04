@@ -51,6 +51,8 @@ function SortableTreeNode({ node, depth, activePageId, onCreatePage, onCreateDir
   const menuRef = useRef<HTMLDivElement>(null)
   const iconPickerRef = useRef<HTMLDivElement>(null)
 
+
+
   const isDirectory = node.type === 'directory'
   const displayTitle = isDirectory ? (node.name || node.title) : node.title
 
@@ -237,6 +239,9 @@ function SortableTreeNode({ node, depth, activePageId, onCreatePage, onCreateDir
             >
               ⋮
             </span>
+          )}
+          {(menuOpen || showIconPicker) && (
+            <div className="menu-backdrop" onClick={(e) => { e.stopPropagation(); setMenuOpen(false); setShowIconPicker(false) }} />
           )}
           {menuOpen && !isViewer && (
             <div className="tree-menu" ref={menuRef}>
