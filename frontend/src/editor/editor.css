@@ -12,32 +12,6 @@
   flex: 1;
 }
 
-.editor-toolbar {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-1);
-  padding: var(--sp-2) var(--sp-4);
-  border-bottom: 1px solid var(--color-border-light);
-  background: var(--color-surface);
-  flex-shrink: 0;
-}
-
-.toolbar-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-  font-size: 1rem;
-  transition: background var(--transition-fast);
-}
-
-.toolbar-button:hover {
-  background: var(--color-surface-hover);
-}
-
 .editor-loading {
   max-width: 800px;
   margin: 0 auto;
@@ -249,41 +223,4 @@
   color: white;
 }
 
-/* Resizable Image (Tiptap 3.x built-in) */
-[data-resize-handle] {
-  position: absolute;
-  width: 10px;
-  height: 10px;
-  background: var(--color-primary);
-  border: 2px solid white;
-  border-radius: 2px;
-  z-index: 10;
-}
-
-[data-resize-handle="bottom-right"] {
-  bottom: -5px;
-  right: -5px;
-  cursor: nwse-resize;
-}
-
-[data-resize-handle="bottom-left"] {
-  bottom: -5px;
-  left: -5px;
-  cursor: nesw-resize;
-}
-
-[data-resize-handle="top-right"] {
-  top: -5px;
-  right: -5px;
-  cursor: nesw-resize;
-}
-
-[data-resize-handle="top-left"] {
-  top: -5px;
-  left: -5px;
-  cursor: nwse-resize;
-}
-
-.is-resizing {
-  user-select: none;
-}
+/* Resize handles for FileUpload extension (auto-injected styles may override) */

@@ -3,7 +3,7 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Collaboration from '@tiptap/extension-collaboration'
 import CollaborationCaret from '@tiptap/extension-collaboration-caret'
-import Image from '@tiptap/extension-image'
+import { FileUpload } from '@tiptap-codeless/extension-file-upload'
 import { HocuspocusProvider } from '@hocuspocus/provider'
 import { useEditorStore } from '../store/editor'
 import { useAuthStore } from '../store/auth'
@@ -13,40 +13,6 @@ import './editor.css'
 const colors = [
   '#958DF1', '#F98181', '#FBBC88', '#FAF594', '#70CFF8', '#94FADB', '#B9F18D',
 ]
-
-async function uploadImage(file: File, pageId: string): Promise<string | null> {
-  const formData = new FormData()
-  formData.append('file', file)
-  formData.append('pageId', pageId)
-
-  try {
-    const { useAuthStore } = await import('../store/auth')
-    const token = useAuthStore.getState().accessToken
-
-    const res = await fetch('/api/attachments', {
-      method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: formData,
-    })
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-      console.error('[upload] failed:', err)
-      return null
-    }
-
-    const data = await res.json()
-    // Append token for <img> tag auth (browser can't set Authorization header on image requests)
-    if (token) {
-      const separator = data.url.includes('?') ? '&' : '?'
-      return `${data.url}${separator}token=${encodeURIComponent(token)}`
-    }
-    return data.url
-  } catch (err) {
-    console.error('[upload] error:', err)
-    return null
-  }
-}
 
 function TipTapEditor({ provider, userName, permission, pageId }: { provider: HocuspocusProvider; userName: string; permission: string; pageId: string }) {
   const isReadOnly = permission === 'viewer' || permission === 'none'
@@ -66,13 +32,59 @@ function TipTapEditor({ provider, userName, permission, pageId }: { provider: Ho
           color: colors[Math.floor(Math.random() * colors.length)],
         },
       }),
-      Image.configure({
-        resize: {
-          enabled: true,
-          directions: ['bottom-right', 'bottom-left', 'top-right', 'top-left'],
-          minWidth: 50,
-          minHeight: 50,
-          alwaysPreserveAspectRatio: true,
+      FileUpload.configure({
+        locale: 'en',
+        storage: {
+          mode: 'custom',
+          upload: async (files: File[], _ctx: any) => {
+            const assets = await Promise.all(
+              files.map(async (file: File) => {
+                const formData = new FormData()
+                formData.append('file', file)
+                formData.append('pageId', pageId)
+
+                const { useAuthStore } = await import('../store/auth')
+                const token = useAuthStore.getState().accessToken
+
+                const res = await fetch('/api/attachments', {
+                  method: 'POST',
+                  headers: token ? { Authorization: `Bearer ${token}` } : {},
+                  body: formData,
+                })
+
+                if (!res.ok) {
+                  const err = await res.json().catch(() => ({}))
+                  throw new Error(err.error?.message || 'Upload failed')
+                }
+
+                const data = await res.json()
+                const url = token
+                  ? `${data.url}${data.url.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`
+                  : data.url
+
+                return {
+                  kind: file.type.startsWith('image/') ? 'image' as const : 'file' as const,
+                  url,
+                  name: file.name,
+                  mimeType: file.type,
+                  size: file.size,
+                }
+              })
+            )
+            return { assets }
+          },
+        },
+        ingest: {
+          paste: true,
+          drop: true,
+          allowedMimeTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
+        },
+        ui: {
+          bubbleMenu: { enabled: true, zIndex: 1000 },
+          uploadPlaceholder: { enabled: true },
+        },
+        onError: (error: unknown) => {
+          console.error('[file-upload] error:', error)
         },
       }),
     ],
@@ -110,80 +122,8 @@ function TipTapEditor({ provider, userName, permission, pageId }: { provider: Ho
     }
   }, [provider])
 
-  // Handle image paste/drop
-  useEffect(() => {
-    if (!editor || !provider) return
-
-    const handlePaste = (event: ClipboardEvent) => {
-      const items = event.clipboardData?.items
-      if (!items) return
-
-      for (const item of Array.from(items)) {
-        if (item.type.startsWith('image/')) {
-          event.preventDefault()
-          const file = item.getAsFile()
-          if (!file) continue
-
-          uploadImage(file, pageId).then((url) => {
-            if (url) {
-              editor.chain().focus().setImage({ src: url }).run()
-            }
-          })
-          return
-        }
-      }
-    }
-
-    const handleDrop = (event: DragEvent) => {
-      const files = event.dataTransfer?.files
-      if (!files || files.length === 0) return
-
-      for (const file of Array.from(files)) {
-        if (file.type.startsWith('image/')) {
-          event.preventDefault()
-          uploadImage(file, pageId).then((url) => {
-            if (url) {
-              editor.chain().focus().setImage({ src: url }).run()
-            }
-          })
-          return
-        }
-      }
-    }
-
-    editor.view.dom.addEventListener('paste', handlePaste as EventListener)
-    editor.view.dom.addEventListener('drop', handleDrop as EventListener)
-
-    return () => {
-      editor.view.dom.removeEventListener('paste', handlePaste as EventListener)
-      editor.view.dom.removeEventListener('drop', handleDrop as EventListener)
-    }
-  }, [editor, provider, pageId])
-
   return (
     <div className="editor-wrapper">
-      {!isReadOnly && (
-        <div className="editor-toolbar">
-          <label className="toolbar-button" title="Upload image">
-            <input
-              type="file"
-              accept="image/*"
-              style={{ display: 'none' }}
-              onChange={async (e) => {
-                const file = e.target.files?.[0]
-                if (file && pageId) {
-                  const url = await uploadImage(file, pageId)
-                  if (url) {
-                    editor?.chain().focus().setImage({ src: url }).run()
-                  }
-                }
-                e.target.value = '' // allow re-selecting same file
-              }}
-            />
-            🖼️
-          </label>
-        </div>
-      )}
       <EditorContent editor={editor} className="tiptap" />
     </div>
   )

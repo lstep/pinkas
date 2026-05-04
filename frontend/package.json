@@ -13,6 +13,8 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@hocuspocus/provider": "^3.4.4",
+    "@tiptap-codeless/core": "^1.0.0",
+    "@tiptap-codeless/extension-file-upload": "^1.0.0",
     "@tiptap/core": "^3.22.5",
     "@tiptap/extension-bullet-list": "^3.22.5",
     "@tiptap/extension-code-block": "^3.22.5",
