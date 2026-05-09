@@ -128,8 +128,8 @@ export async function createMCPToken(req: CreateTokenRequest): Promise<CreateTok
       body: JSON.stringify(req),
     })
   const res = await doFetch()
-  await handleResponse(res, doFetch)
-  return res.json()
+  const finalRes = await handleResponse(res, doFetch)
+  return finalRes.json()
 }
 
 export async function listMCPTokens(): Promise<MCPToken[]> {
@@ -138,8 +138,8 @@ export async function listMCPTokens(): Promise<MCPToken[]> {
       headers: getHeaders(),
     })
   const res = await doFetch()
-  await handleResponse(res, doFetch)
-  const data: ListTokensResponse = await res.json()
+  const finalRes = await handleResponse(res, doFetch)
+  const data: ListTokensResponse = await finalRes.json()
   return data.tokens
 }
 
