@@ -11,15 +11,15 @@ import { FileUpload } from '@tiptap-codeless/extension-file-upload'
 import { HocuspocusProvider } from '@hocuspocus/provider'
 import { useEditorStore } from '../store/editor'
 import { useAuthStore } from '../store/auth'
-import { Card, Badge } from '../components/ui'
+import { Card } from '../components/ui'
 import './editor.css'
 
 const colors = [
   '#958DF1', '#F98181', '#FBBC88', '#FAF594', '#70CFF8', '#94FADB', '#B9F18D',
 ]
 
-function TipTapEditor({ provider, userName, permission, pageId }: { provider: HocuspocusProvider; userName: string; permission: string; pageId: string }) {
-  const isReadOnly = permission === 'viewer' || permission === 'none'
+function TipTapEditor({ provider, userName, permission, pageId, readOnlyOverride }: { provider: HocuspocusProvider; userName: string; permission: string; pageId: string; readOnlyOverride?: boolean }) {
+  const isReadOnly = permission === 'viewer' || permission === 'none' || !!readOnlyOverride
   const editor = useEditor({
     editable: !isReadOnly,
     extensions: [
@@ -130,6 +130,13 @@ function TipTapEditor({ provider, userName, permission, pageId }: { provider: Ho
       ydoc.off('update', updateHandler)
     }
   }, [provider])
+
+  // Sync editable state when readOnlyOverride or permission changes
+  useEffect(() => {
+    if (editor) {
+      editor.setEditable(!isReadOnly)
+    }
+  }, [editor, isReadOnly])
 
   const shouldShowBubble = useCallback(({ editor: ed }: { editor: any }) => {
     if (!ed || ed.isDestroyed) return false
@@ -273,6 +280,7 @@ export const CollaborativeEditor: React.FC<{ onToggleHistory?: () => void }> = (
   const { providerUrl, docId, permission } = useEditorStore()
   const accessToken = useAuthStore((s) => s.accessToken)
   const user = useAuthStore((s) => s.user)
+  const [readOnlyOverride, setReadOnlyOverride] = useState(false)
   const providerRef = useRef<HocuspocusProvider | null>(null)
   const [provider, setProvider] = useState<HocuspocusProvider | null>(null)
   const [status, setStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting')
@@ -325,10 +333,27 @@ export const CollaborativeEditor: React.FC<{ onToggleHistory?: () => void }> = (
           <span className="status-text">
             {status === 'connected' ? 'Live' : status}
           </span>
-          {(permission === 'viewer' || permission === 'none') && (
-            <Badge variant="viewer" size="sm">Read-only</Badge>
-          )}
           <div className="editor-status-actions">
+            {permission !== 'viewer' && permission !== 'none' && (
+              <button
+                className={`toolbar-btn ${readOnlyOverride ? 'is-active' : ''}`}
+                onClick={() => setReadOnlyOverride((v) => !v)}
+                title={readOnlyOverride ? 'Enable editing' : 'Read-only mode'}
+                type="button"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  {readOnlyOverride ? (
+                    <>
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </>
+                  ) : (
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  )}
+                </svg>
+                {readOnlyOverride ? 'Locked' : 'Lock'}
+              </button>
+            )}
             <button
               className="toolbar-btn"
               onClick={onToggleHistory}
@@ -344,7 +369,7 @@ export const CollaborativeEditor: React.FC<{ onToggleHistory?: () => void }> = (
           </div>
         </div>
         <div className="editor-content">
-          <TipTapEditor provider={provider} userName={userName} permission={permission} pageId={pageId} />
+          <TipTapEditor provider={provider} userName={userName} permission={permission} pageId={pageId} readOnlyOverride={readOnlyOverride} />
         </div>
       </Card>
     </div>

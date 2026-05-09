@@ -73,6 +73,12 @@
   border-color: var(--color-accent);
 }
 
+.toolbar-btn.is-active {
+  background: var(--color-danger-light, #fef2f2);
+  color: var(--color-danger, #dc2626);
+  border-color: var(--color-danger, #dc2626);
+}
+
 .toolbar-btn svg {
   flex-shrink: 0;
 }
