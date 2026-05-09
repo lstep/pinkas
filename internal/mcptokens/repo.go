@@ -81,7 +81,7 @@ func (r *Repository) ListTokens(ctx context.Context, userID string) ([]MCPToken,
 	}
 	defer rows.Close()
 
-	var tokens []MCPToken
+	tokens := make([]MCPToken, 0)
 	for rows.Next() {
 		var t MCPToken
 		var spaceID, lastUsedAt, expiresAt sql.NullString

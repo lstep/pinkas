@@ -140,7 +140,7 @@ export async function listMCPTokens(): Promise<MCPToken[]> {
   const res = await doFetch()
   const finalRes = await handleResponse(res, doFetch)
   const data: ListTokensResponse = await finalRes.json()
-  return data.tokens
+  return data.tokens || []
 }
 
 export async function deleteMCPToken(id: string): Promise<void> {
