@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, Link } from 'react-router-dom'
 import {
   DndContext,
   closestCenter,
@@ -400,6 +400,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePageId, spaceId, onCreat
   }
 
   const currentUser = useAuthStore((s) => s.user)
+  const isAdmin = currentUser?.role === 'admin'
   const isViewer = currentUser?.role === 'viewer'
 
   const handleCreate = async () => {
@@ -432,6 +433,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePageId, spaceId, onCreat
     >
       <aside className="sidebar">
         <div className="sidebar-header">
+          <Link to="/" className="sidebar-home-link">← All Spaces</Link>
           <h2>Pages</h2>
           {!isViewer && (
             <Button 
@@ -492,6 +494,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePageId, spaceId, onCreat
             ))}
           </SortableContext>
           {rootIds.length === 0 && <p className="empty">No pages yet</p>}
+        </div>
+        <div className="sidebar-footer">
+          {isAdmin && (
+            <Link to="/manage-spaces" className="sidebar-footer-link">
+              Manage Spaces
+            </Link>
+          )}
+          <Link to="/settings" className="sidebar-footer-link">
+            Settings
+          </Link>
         </div>
       </aside>
       <DragOverlay>
