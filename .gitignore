@@ -23,6 +23,7 @@ Thumbs.db
 *.test
 *.out
 coverage/
+:memory:/
 
 # Temporary files
 *.tmp
