@@ -18,6 +18,10 @@ const tiptapSchema = new Schema({
     hard_break: { inline: true, group: 'inline' },
     horizontal_rule: { group: 'block' },
     image: { group: 'inline', inline: true, attrs: { src: {}, alt: { default: null }, title: { default: null } } },
+    // @tiptap-codeless/extension-file-upload node types (block-level, matches frontend exactly)
+    uploadImage: { group: 'block', attrs: { src: { default: null }, alt: { default: null }, title: { default: null }, fileName: { default: null }, mimeType: { default: null }, width: { default: null }, height: { default: null }, storageMode: { default: null }, storageKey: { default: null }, align: { default: null } } },
+    uploadVideo: { group: 'block', attrs: { src: { default: null }, width: { default: null }, height: { default: null }, fileName: { default: null }, mimeType: { default: null }, storageMode: { default: null }, storageKey: { default: null } } },
+    uploadFileCard: { group: 'block', attrs: { url: { default: null }, fileName: { default: null }, fileSize: { default: null }, mimeType: { default: null }, storageMode: { default: null }, storageKey: { default: null } } },
     ordered_list: { content: 'list_item+', group: 'block', attrs: { order: { default: 1 } } },
     bullet_list: { content: 'list_item+', group: 'block' },
     list_item: { content: 'paragraph block*' },
