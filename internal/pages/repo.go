@@ -255,6 +255,27 @@ func (r *Repository) DeleteSnapshotsForPage(ctx context.Context, pageID string) 
 	return nil
 }
 
+// ListPagesWithSnapshots returns all distinct page IDs that have Yjs snapshots.
+func (r *Repository) ListPagesWithSnapshots(ctx context.Context) ([]string, error) {
+	rows, err := r.conn.QueryContext(ctx,
+		"SELECT DISTINCT page_id FROM page_snapshots WHERE yjs_snapshot IS NOT NULL AND yjs_snapshot != ''",
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list pages with snapshots: %w", err)
+	}
+	defer rows.Close()
+
+	var pageIDs []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan page id: %w", err)
+		}
+		pageIDs = append(pageIDs, id)
+	}
+	return pageIDs, rows.Err()
+}
+
 // GetAncestors walks up the directory_id chain and returns all ancestor directories
 // from root to the page's directory (not including the page itself).
 func (r *Repository) GetAncestors(ctx context.Context, pageID string) ([]sqlc.Directory, error) {
@@ -325,13 +346,18 @@ func (r *Repository) SearchPages(ctx context.Context, query string, limit int) (
 	escapedQuery := escapeFTS5(query)
 
 	// Use raw SQL for FTS5 search since sqlc doesn't support virtual tables
+	// Deduplicate by page_id using GROUP BY with MIN(rank) to keep the best match.
 	rows, err := r.conn.QueryContext(ctx, `
 		SELECT p.id, p.space_id, p.directory_id, p.title, p.slug, p.position, p.created_by, p.created_at, p.updated_at, p.icon,
 		       (SELECT markdown FROM page_snapshots WHERE page_id = p.id ORDER BY created_at DESC LIMIT 1) AS markdown
-		FROM page_fts
-		JOIN pages p ON p.id = page_fts.page_id
-		WHERE page_fts MATCH ?
-		ORDER BY rank
+		FROM (
+			SELECT page_id, MIN(rank) AS rank
+			FROM page_fts
+			WHERE page_fts MATCH ?
+			GROUP BY page_id
+		) AS matched
+		JOIN pages p ON p.id = matched.page_id
+		ORDER BY matched.rank
 		LIMIT ?
 	`, escapedQuery, limit)
 	if err != nil {
@@ -446,5 +472,30 @@ func (r *Repository) InitFTS5(ctx context.Context) error {
 		return fmt.Errorf("create page_fts_au_pages trigger: %w", err)
 	}
 
+	return nil
+}
+
+// BackfillFTS5 populates the FTS5 index from existing page snapshots.
+// Should be called after InitFTS5 to index content that was saved before the
+// FTS5 table existed.
+func (r *Repository) BackfillFTS5(ctx context.Context) error {
+	_, err := r.conn.ExecContext(ctx, `
+		INSERT OR REPLACE INTO page_fts (page_id, title, content)
+		SELECT p.id, p.title, ps.markdown
+		FROM page_snapshots ps
+		JOIN pages p ON p.id = ps.page_id
+		WHERE ps.id IN (
+			SELECT id FROM page_snapshots
+			WHERE page_id = ps.page_id
+			ORDER BY created_at DESC
+			LIMIT 1
+		)
+	`)
+	if err != nil {
+		if isTableNotExistError(err) {
+			return nil // FTS5 not available, skip
+		}
+		return fmt.Errorf("backfill fts5: %w", err)
+	}
 	return nil
 }

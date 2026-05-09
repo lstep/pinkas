@@ -33,6 +33,7 @@ func RegisterRoutes(mux *http.ServeMux, repo *Repository, logger *slog.Logger, d
 	mux.HandleFunc("POST /internal/restore", handler.Restore)
 	mux.HandleFunc("POST /internal/cleanup", handler.Cleanup)
 	mux.HandleFunc("GET /internal/load", handler.Load)
+	mux.HandleFunc("GET /internal/pages-with-snapshots", handler.PagesWithSnapshots)
 	mux.HandleFunc("GET /health", handler.Health)
 
 	restHandler.RegisterRESTRoutes(mux)
@@ -171,6 +172,19 @@ func (h *Handler) Load(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"yjsSnapshot": snapshot.YjsSnapshot,
+	})
+}
+
+func (h *Handler) PagesWithSnapshots(w http.ResponseWriter, r *http.Request) {
+	pageIDs, err := h.repo.ListPagesWithSnapshots(r.Context())
+	if err != nil {
+		h.logger.Error("failed to list pages with snapshots", "error", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"pageIds": pageIDs,
 	})
 }
 

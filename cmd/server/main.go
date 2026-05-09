@@ -86,6 +86,41 @@ func main() {
 	directoriesRepo := directories.NewRepository(database)
 	pagesRepo := pages.NewRepository(database)
 
+	// Initialize FTS5 full-text search (virtual table + triggers)
+	if err := pagesRepo.InitFTS5(context.Background()); err != nil {
+		logger.Error("failed to init FTS5", "error", err)
+		logger.Warn("FTS5 not available — ensure binary is built with -tags fts5")
+	} else {
+		// Backfill FTS index from existing snapshots
+		if err := pagesRepo.BackfillFTS5(context.Background()); err != nil {
+			logger.Error("failed to backfill FTS5", "error", err)
+		} else {
+			var count int
+			_ = database.QueryRowContext(context.Background(), "SELECT COUNT(*) FROM page_fts").Scan(&count)
+			logger.Info("FTS5 search ready", "indexed_pages", count)
+
+			// Sample the first few rows to verify content is indexed
+			if sampleRows, err := database.QueryContext(context.Background(), "SELECT page_id, substr(title,1,40), substr(content,1,100) FROM page_fts LIMIT 3"); err == nil {
+				rowNum := 0
+				for sampleRows.Next() {
+					var samplePageID, sampleTitle, sampleContent string
+					if err := sampleRows.Scan(&samplePageID, &sampleTitle, &sampleContent); err == nil {
+						logger.Info("FTS5 sample",
+							"page_id", samplePageID,
+							"title", sampleTitle,
+							"content_preview", sampleContent,
+						)
+						rowNum++
+					}
+				}
+				sampleRows.Close()
+				if rowNum == 0 {
+					logger.Warn("FTS5 has rows but none could be sampled — possible empty content")
+				}
+			}
+		}
+	}
+
 	// Permission resolver with callbacks for ancestor walking
 	permResolver := permissions.NewResolver(
 		permRepo,

@@ -4,7 +4,7 @@ all: build
 
 build:
 	@echo "Building Go backend..."
-	go build -o server ./cmd/server
+	go build -tags fts5 -o server ./cmd/server
 	@echo "Building frontend..."
 	cd frontend && npm run build
 

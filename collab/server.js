@@ -141,7 +141,9 @@ setInterval(async () => {
 
 // Yjs → ProseMirror → Markdown conversion
 function yjsToMarkdown(ydoc) {
-  const fragment = ydoc.getXmlFragment('prosemirror')
+  // Tiptap's @tiptap/extension-collaboration stores content in the 'default' XML fragment.
+  // Using the wrong fragment name (e.g. 'prosemirror') returns an empty fragment → empty markdown.
+  const fragment = ydoc.getXmlFragment('default')
   
   // Log fragment content for debugging
   let childCount = 0
@@ -247,6 +249,76 @@ const healthServer = http.createServer((req, res) => {
         res.end(JSON.stringify({ status: 'ok' }))
       } catch (err) {
         console.error('[restore] error:', err.message)
+        res.writeHead(500)
+        res.end(JSON.stringify({ error: err.message }))
+      }
+    })
+  } else if (req.url === '/internal/reindex' && req.method === 'POST') {
+    let body = ''
+    req.on('data', chunk => { body += chunk })
+    req.on('end', async () => {
+      try {
+        // Handle empty body (e.g. no JSON payload sent)
+        let docIds
+        if (body.trim()) {
+          try { const parsed = JSON.parse(body); docIds = parsed.docIds } catch (e) {}
+        }
+
+        // If no specific docIds provided, fetch all from Go API
+        let ids = docIds
+        if (!ids || !Array.isArray(ids) || ids.length === 0) {
+          const { data } = await callInternal('/internal/pages-with-snapshots')
+          ids = data?.pageIds || []
+          console.log(`[reindex] found ${ids.length} pages with snapshots`)
+        }
+
+        let successCount = 0
+        let errorCount = 0
+
+        for (const docId of ids) {
+          try {
+            // Load the Yjs snapshot via Go API
+            const { data: loadData } = await callInternal(`/internal/load?docId=${encodeURIComponent(docId)}`)
+
+            if (!loadData?.yjsSnapshot) {
+              console.log(`[reindex] no snapshot for ${docId}, skipping`)
+              continue
+            }
+
+            // Apply to a fresh Y.Doc and extract markdown
+            const ydoc = new Y.Doc()
+            const buffer = Buffer.from(loadData.yjsSnapshot, 'base64')
+            Y.applyUpdate(ydoc, new Uint8Array(buffer))
+            const markdown = yjsToMarkdown(ydoc)
+
+            // Save markdown back via Go API
+            const { status } = await callInternal('/internal/save', {
+              method: 'POST',
+              body: JSON.stringify({
+                docId,
+                markdown,
+                yjsSnapshot: loadData.yjsSnapshot,
+                authorId: 'system',
+              }),
+            })
+
+            if (status === 200) {
+              successCount++
+            } else {
+              errorCount++
+              console.error(`[reindex] save failed for ${docId}`)
+            }
+          } catch (err) {
+            errorCount++
+            console.error(`[reindex] failed for ${docId}:`, err.message)
+          }
+        }
+
+        console.log(`[reindex] done: ${successCount} succeeded, ${errorCount} failed`)
+        res.writeHead(200)
+        res.end(JSON.stringify({ status: 'ok', successCount, errorCount }))
+      } catch (err) {
+        console.error('[reindex] error:', err.message)
         res.writeHead(500)
         res.end(JSON.stringify({ error: err.message }))
       }

@@ -47,7 +47,7 @@ func (h *RESTHandler) ListSnapshots(w http.ResponseWriter, r *http.Request) {
 			ID:        s.ID,
 			PageID:    s.PageID,
 			Label:     s.Label,
-			CreatedAt: s.CreatedAt,
+			CreatedAt: s.CreatedAt * 1000,
 		})
 	}
 
@@ -84,7 +84,7 @@ func (h *RESTHandler) GetSnapshot(w http.ResponseWriter, r *http.Request) {
 		"label":       snapshot.Label,
 		"markdown":    snapshot.Markdown,
 		"authorId":    snapshot.AuthorID,
-		"createdAt":   snapshot.CreatedAt,
+		"createdAt":   snapshot.CreatedAt * 1000,
 		"yjsSnapshot": base64.StdEncoding.EncodeToString(snapshot.YjsSnapshot),
 	}
 

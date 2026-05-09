@@ -36,12 +36,14 @@ func (h *RESTHandler) Search(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Search pages
+	h.logger.Debug("search request", "query", query, "limit", limit)
 	results, err := h.repo.SearchPages(r.Context(), query, limit)
 	if err != nil {
 		h.logger.Error("search pages failed", "error", err, "query", query)
 		httputil.WriteError(w, http.StatusInternalServerError, "search_failed", "Search failed")
 		return
 	}
+	h.logger.Debug("search raw results", "query", query, "count", len(results))
 
 	// Filter by permissions for non-admin users
 	var filteredResults []map[string]interface{}
@@ -63,6 +65,7 @@ func (h *RESTHandler) Search(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	h.logger.Debug("search filtered results", "query", query, "before", len(results), "after", len(filteredResults))
 	httputil.JSON(w, http.StatusOK, map[string]interface{}{
 		"results": filteredResults,
 	})
