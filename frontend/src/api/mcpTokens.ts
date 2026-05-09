@@ -1,13 +1,11 @@
+import { useAuthStore } from '../store/auth'
+
 function getHeaders(): Record<string, string> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  const token = document.cookie
-    .split('; ')
-    .find((row) => row.startsWith('accessToken='))
-    ?.split('=')[1]
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`
+  const token = useAuthStore.getState().accessToken
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
   }
-  return headers
 }
 
 async function handleResponse(res: Response): Promise<Response> {
@@ -16,7 +14,12 @@ async function handleResponse(res: Response): Promise<Response> {
     let msg: string
     try {
       const parsed = JSON.parse(body)
-      msg = parsed.message || parsed.error || body
+      // Handle {error: {message: "..."}} from httputil.WriteError
+      if (parsed.error && typeof parsed.error === 'object') {
+        msg = parsed.error.message || parsed.error.code || body
+      } else {
+        msg = parsed.message || parsed.error || body
+      }
     } catch {
       msg = body || res.statusText
     }
