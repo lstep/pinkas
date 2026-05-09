@@ -88,19 +88,7 @@ func (h *Handler) ListTokens(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Strip token_hash from response
-	type tokenResponse struct {
-		ID          string `json:"id"`
-		UserID      string `json:"userId"`
-		Name        string `json:"name"`
-		TokenPrefix string `json:"tokenPrefix"`
-		Scopes      string `json:"scopes"`
-		SpaceID     string `json:"spaceId,omitempty"`
-		LastUsedAt  int64  `json:"lastUsedAt,omitempty"`
-		CreatedAt   int64  `json:"createdAt"`
-		ExpiresAt   int64  `json:"expiresAt,omitempty"`
-	}
-
+	// TokenHash is excluded by json:"-" on the struct
 	httputil.JSON(w, http.StatusOK, ListTokensResponse{Tokens: tokens})
 }
 
