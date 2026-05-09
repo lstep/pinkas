@@ -276,6 +276,44 @@ func (r *Repository) ListPagesWithSnapshots(ctx context.Context) ([]string, erro
 	return pageIDs, rows.Err()
 }
 
+// DeleteSnapshotsOlderThan deletes unlabeled snapshots older than the given unix timestamp.
+// Skips labeled snapshots (manual versions) which are never auto-deleted.
+func (r *Repository) DeleteSnapshotsOlderThan(ctx context.Context, cutoffUnix int64) (int64, error) {
+	result, err := r.conn.ExecContext(ctx,
+		"DELETE FROM page_snapshots WHERE created_at < ? AND (label IS NULL OR label = '')",
+		cutoffUnix,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("delete old snapshots: %w", err)
+	}
+	n, _ := result.RowsAffected()
+	return n, nil
+}
+
+// ListPagesWithLargeSnapshots returns page IDs whose latest Yjs snapshot exceeds thresholdBytes.
+func (r *Repository) ListPagesWithLargeSnapshots(ctx context.Context, thresholdBytes int) ([]string, error) {
+	rows, err := r.conn.QueryContext(ctx,
+		"SELECT ps.page_id FROM page_snapshots ps "+
+			"WHERE ps.id = (SELECT id FROM page_snapshots WHERE page_id = ps.page_id ORDER BY created_at DESC LIMIT 1) "+
+			"AND length(ps.yjs_snapshot) > ?",
+		thresholdBytes,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list large snapshots: %w", err)
+	}
+	defer rows.Close()
+
+	var pageIDs []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan page id: %w", err)
+		}
+		pageIDs = append(pageIDs, id)
+	}
+	return pageIDs, rows.Err()
+}
+
 // GetAncestors walks up the directory_id chain and returns all ancestor directories
 // from root to the page's directory (not including the page itself).
 func (r *Repository) GetAncestors(ctx context.Context, pageID string) ([]sqlc.Directory, error) {

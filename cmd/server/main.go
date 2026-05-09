@@ -225,6 +225,70 @@ func main() {
 		}
 	}()
 
+	// Periodic maintenance: snapshot retention cleanup (every hour)
+	go func() {
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+		// Run once at startup too
+		spaces, err := spacesRepo.List(ctx)
+		if err == nil {
+			var retained []pages.SpaceRetention
+			for _, s := range spaces {
+				retained = append(retained, pages.SpaceRetention{
+					ID: s.ID,
+					RetentionDays: func() int64 {
+						if s.SnapshotRetentionDays.Valid {
+							return s.SnapshotRetentionDays.Int64
+						}
+						return 0
+					}(),
+				})
+			}
+			pages.RunSnapshotRetention(ctx, pagesRepo, retained, logger)
+		}
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				spaces, err := spacesRepo.List(context.Background())
+				if err != nil {
+					logger.Error("[maintenance] list spaces", "error", err)
+					continue
+				}
+				var retained []pages.SpaceRetention
+				for _, s := range spaces {
+					retained = append(retained, pages.SpaceRetention{
+						ID: s.ID,
+						RetentionDays: func() int64 {
+							if s.SnapshotRetentionDays.Valid {
+								return s.SnapshotRetentionDays.Int64
+							}
+							return 0
+						}(),
+					})
+				}
+				pages.RunSnapshotRetention(context.Background(), pagesRepo, retained, logger)
+			}
+		}
+	}()
+
+	// Periodic maintenance: Yjs snapshot compaction (every 5 minutes)
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		// Run once at startup too
+		pages.RunCompaction(ctx, pagesRepo, collabURL, logger, 500*1024)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				pages.RunCompaction(context.Background(), pagesRepo, collabURL, logger, 500*1024)
+			}
+		}
+	}()
+
 	<-ctx.Done()
 	logger.Info("shutting down...")
 

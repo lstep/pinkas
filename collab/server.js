@@ -323,6 +323,55 @@ const healthServer = http.createServer((req, res) => {
         res.end(JSON.stringify({ error: err.message }))
       }
     })
+  } else if (req.url === '/internal/compact' && req.method === 'POST') {
+    let body = ''
+    req.on('data', chunk => { body += chunk })
+    req.on('end', async () => {
+      try {
+        const { docId } = JSON.parse(body)
+        if (!docId) {
+          res.writeHead(400)
+          res.end(JSON.stringify({ error: 'docId required' }))
+          return
+        }
+
+        // Load Yjs snapshot from Go API
+        const { status, data: loadData } = await callInternal(`/internal/load?docId=${encodeURIComponent(docId)}`)
+        if (status !== 200 || !loadData?.yjsSnapshot) {
+          res.writeHead(200)
+          res.end(JSON.stringify({ status: 'ok', note: 'no snapshot' }))
+          return
+        }
+
+        // Apply to fresh Y.Doc and re-encode (this compacts the Yjs state)
+        const ydoc = new Y.Doc()
+        const buffer = Buffer.from(loadData.yjsSnapshot, 'base64')
+        Y.applyUpdate(ydoc, new Uint8Array(buffer))
+
+        // Re-encode compacted state
+        const compacted = Buffer.from(Y.encodeStateAsUpdate(ydoc)).toString('base64')
+        const markdown = yjsToMarkdown(ydoc)
+
+        // Save compacted snapshot back
+        await callInternal('/internal/save', {
+          method: 'POST',
+          body: JSON.stringify({
+            docId,
+            markdown,
+            yjsSnapshot: compacted,
+            authorId: 'system',
+          }),
+        })
+
+        console.log(`[compact] compacted: ${docId}`)
+        res.writeHead(200)
+        res.end(JSON.stringify({ status: 'ok', compacted: 'true' }))
+      } catch (err) {
+        console.error('[compact] error:', err.message)
+        res.writeHead(500)
+        res.end(JSON.stringify({ error: err.message }))
+      }
+    })
   } else {
     res.writeHead(404)
     res.end(JSON.stringify({ error: 'not found' }))
