@@ -8,8 +8,12 @@ services:
     environment:
       - DATA_DIR=/data
       - PORT=3000
+      - MCP_HTTP_ADDR=:3100
+    ports:
+      - "3100:3100"
     expose:
       - "3000"
+      - "3100"
     networks:
       - mostdoc
 

@@ -14,6 +14,8 @@ import (
 	"github.com/mostdoc/mostdoc/internal/auth"
 	"github.com/mostdoc/mostdoc/internal/db"
 	"github.com/mostdoc/mostdoc/internal/directories"
+	"github.com/mostdoc/mostdoc/internal/mcptokens"
+	"github.com/mostdoc/mostdoc/internal/mcp"
 	"github.com/mostdoc/mostdoc/internal/groups"
 	"github.com/mostdoc/mostdoc/internal/pages"
 	"github.com/mostdoc/mostdoc/internal/permissions"
@@ -155,6 +157,22 @@ func main() {
 	attachmentsHandler.RegisterRoutes(mux)
 	sseHandler.RegisterRoutes(mux)
 
+	// MCP tokens setup
+	mcpTokenRepo := mcptokens.NewRepository(database)
+	mcpTokenService := mcptokens.NewService(mcpTokenRepo)
+	mcpTokenHandler := mcptokens.NewHandler(mcpTokenService, logger)
+	mcpTokenHandler.RegisterRoutes(mux)
+
+	// MCP server (MCP protocol over SSE, port 3100)
+	mcpServer := mcp.NewServer(
+		mcpTokenService,
+		pagesRepo,
+		spacesRepo,
+		directoriesRepo,
+		permResolver,
+		logger,
+	)
+
 	// Wrap with auth middleware
 	wrapped := auth.Middleware(authService)(mux)
 
@@ -190,6 +208,23 @@ func main() {
 		}
 	}()
 
+	// Start MCP SSE server on port 3100
+	mcpHTTPAddr := os.Getenv("MCP_HTTP_ADDR")
+	if mcpHTTPAddr == "" {
+		mcpHTTPAddr = ":3100"
+	}
+	mcpHandler := mcpServer.Handler()
+	mcpHTTPServer := &http.Server{
+		Addr:    mcpHTTPAddr,
+		Handler: mcpHandler,
+	}
+	go func() {
+		logger.Info("starting MCP server (SSE)", "addr", mcpHTTPAddr)
+		if err := mcpHTTPServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Error("mcp server error", "error", err)
+		}
+	}()
+
 	<-ctx.Done()
 	logger.Info("shutting down...")
 
@@ -198,5 +233,8 @@ func main() {
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		logger.Error("shutdown error", "error", err)
+	}
+	if err := mcpHTTPServer.Shutdown(shutdownCtx); err != nil {
+		logger.Error("mcp shutdown error", "error", err)
 	}
 }

@@ -206,13 +206,15 @@ func (r *Resolver) resolveTarget(ctx context.Context, userID, targetType, target
 	}
 
 	// Check group permissions
-	groups, err := r.listUG(ctx, userID)
-	if err == nil {
-		for _, g := range groups {
-			gPerm, err := r.permRepo.GetPermission(ctx, targetType, targetID, "group", g.ID)
-			if err == nil {
-				if int(gPerm.Level) > maxLevel {
-					maxLevel = int(gPerm.Level)
+	if r.listUG != nil {
+		groups, err := r.listUG(ctx, userID)
+		if err == nil {
+			for _, g := range groups {
+				gPerm, err := r.permRepo.GetPermission(ctx, targetType, targetID, "group", g.ID)
+				if err == nil {
+					if int(gPerm.Level) > maxLevel {
+						maxLevel = int(gPerm.Level)
+					}
 				}
 			}
 		}

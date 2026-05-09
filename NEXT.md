@@ -51,13 +51,16 @@
 - `go build ./...` + `npx tsc --noEmit` pass clean
 
 ### Iteration 5 — Search & Production Operations
-**Weeks 15–17**
 
-- Full-text search (FTS5) with highlighted excerpts
-- Litestream continuous replication
-- HTTPS with automatic certificate renewal
-- Configurable snapshot retention per space
-- Rate limiting on auth endpoints
+FTS5 search and health check are already built. Remaining work:
+
+- [ ] **Snapshot retention cleanup** — Nightly cron job in Go that deletes snapshots older than `snapshot_retention_days` per space (column exists, logic unwired)
+- [ ] **Yjs compaction job** — Periodic task to compact Yjs binary BLOBs when working snapshot exceeds 500KB
+- [ ] **Rate limiting on auth endpoints** — In-memory token bucket per IP on `/api/auth/*`
+- **Litestream backup** — Skipped (not needed)
+- **HTTPS/TLS** — Skipped; you handle NGINX externally with your own cert setup
+- **FTS5 search** — ✅ Already implemented (`internal/pages/repo.go`: `SearchPages`, `EnsureFTS5Index`, FTS5 triggers; `internal/pages/search.go`: handler; `GET /api/pages/search` route)
+- **Health check** — ✅ Already implemented (`GET /health` in `internal/pages/handler.go`)
 
 ### Iteration 6 — MCP Integration
 **Weeks 18–20**
@@ -68,14 +71,16 @@
 
 ## File Map
 
-### Key Files for Iteration 4
-- `internal/pages/handler.go` — Save/Restore/Cleanup endpoints
-- `migrations/` — snapshots table migration
-- `frontend/src/editor/CollaborativeEditor.tsx` — history panel integration
-- `frontend/src/components/HistoryPanel/` — new component
+### Key Files for Iteration 5
+- `internal/pages/repo.go` — FTS5 search, snapshot queries
+- `internal/pages/search.go` — Search HTTP handler
+- `docker-compose.yml` — Add litestream container
+- `Dockerfile.api` — May need `litestream` binary or separate image
+- `internal/pages/handler.go` — Register new routes
+- `internal/auth/handler.go` — Add rate limiter middleware
 
 ### Reference Files
-- `PRD.md` — Iteration 4 scope at lines 684-704
+- `PRD.md` — Iteration 5 scope at lines 708-731
 - `docs/ARCHITECTURE.md` — System architecture
 - `docs/API.md` — API contract
 - `docs/CONTEXT.md` — Decision log
@@ -83,3 +88,4 @@
 ## Known Issues / Gotchas
 - `data/wiki.db` and `frontend/dist/` are in `.gitignore` but sometimes show as modified
 - Design system refactor done: CSS custom properties + shared UI components (Button, Input, Modal, Card, Badge, Skeleton)
+- **HTTPS**: You handle NGINX with your own cert externally — the project's nginx container in docker-compose is for dev/internal routing only

@@ -19,6 +19,9 @@ opencode.json
 .DS_Store
 Thumbs.db
 
+# ByteRover
+.brv/
+
 # Test artifacts
 *.test
 *.out

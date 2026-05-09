@@ -21,6 +21,13 @@ import {
   Group,
   GroupMember,
 } from '../api/admin'
+import {
+  createMCPToken,
+  listMCPTokens,
+  deleteMCPToken,
+  MCPToken,
+  CreateTokenRequest,
+} from '../api/mcpTokens'
 import { Button, Input, Card, Badge, Modal } from '../components/ui'
 import './SettingsPage.css'
 
@@ -33,7 +40,7 @@ export function SettingsPage() {
   const [groups, setGroups] = useState<Group[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'users' | 'groups' | 'permissions'>('users')
+  const [activeTab, setActiveTab] = useState<'users' | 'groups' | 'permissions' | 'tokens'>('users')
 
   // Group management state
   const [newGroupName, setNewGroupName] = useState('')
@@ -57,6 +64,86 @@ export function SettingsPage() {
   const [inviteResponse, setInviteResponse] = useState<InviteResponse | null>(null)
   const [showInviteModal, setShowInviteModal] = useState(false)
 
+  // MCP token management state
+  const [tokens, setTokens] = useState<MCPToken[]>([])
+  const [newTokenName, setNewTokenName] = useState('')
+  const [newTokenScopes, setNewTokenScopes] = useState<string[]>(['read'])
+  const [newTokenSpaceId, setNewTokenSpaceId] = useState('')
+  const [newTokenExpiry, setNewTokenExpiry] = useState('')
+  const [isCreatingToken, setIsCreatingToken] = useState(false)
+  const [showTokenSecretModal, setShowTokenSecretModal] = useState(false)
+  const [createdTokenSecret, setCreatedTokenSecret] = useState('')
+  const [createdTokenName, setCreatedTokenName] = useState('')
+
+  const toggleScope = (scope: string) => {
+    setNewTokenScopes((prev) =>
+      prev.includes(scope) ? prev.filter((s) => s !== scope) : [...prev, scope]
+    )
+  }
+
+  const handleCreateToken = async () => {
+    if (!newTokenName.trim()) return
+    setIsCreatingToken(true)
+    try {
+      const req: CreateTokenRequest = {
+        name: newTokenName.trim(),
+        scopes: newTokenScopes,
+        spaceId: newTokenSpaceId.trim() || undefined,
+        expiresInDays: newTokenExpiry ? parseInt(newTokenExpiry, 10) : undefined,
+      }
+      const resp = await createMCPToken(req)
+      setCreatedTokenName(resp.token.name)
+      setCreatedTokenSecret(resp.secret)
+      setShowTokenSecretModal(true)
+      setNewTokenName('')
+      setNewTokenScopes(['read'])
+      setNewTokenSpaceId('')
+      setNewTokenExpiry('')
+      await loadTokens()
+    } catch (err: any) {
+      alert(err.message || 'Failed to create token')
+    } finally {
+      setIsCreatingToken(false)
+    }
+  }
+
+  const handleDeleteToken = async (token: MCPToken) => {
+    if (!confirm(`Are you sure you want to revoke the token "${token.name}"? This action cannot be undone.`)) return
+    try {
+      await deleteMCPToken(token.id)
+      setTokens((prev) => prev.filter((t) => t.id !== token.id))
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete token')
+    }
+  }
+
+  const loadTokens = async () => {
+    try {
+      const data = await listMCPTokens()
+      setTokens(data)
+    } catch (err: any) {
+      console.error('Failed to load tokens:', err)
+    }
+  }
+
+  const formatDate = (ts: number) => {
+    if (!ts) return 'Never'
+    return new Date(ts * 1000).toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    })
+  }
+
+  const formatScopes = (scopesJson: string) => {
+    try {
+      const scopes: string[] = JSON.parse(scopesJson)
+      return scopes.join(', ')
+    } catch {
+      return scopesJson
+    }
+  }
+
   // Redirect non-admins
   if (currentUser?.role !== 'admin') {
     return (
@@ -76,9 +163,10 @@ export function SettingsPage() {
     setLoading(true)
     setError(null)
     try {
-      const [usersData, groupsData] = await Promise.all([listUsers(), listGroups()])
+      const [usersData, groupsData, tokensData] = await Promise.all([listUsers(), listGroups(), listMCPTokens()])
       setUsers(usersData)
       setGroups(groupsData)
+      setTokens(tokensData)
     } catch (err: any) {
       setError(err.message || 'Failed to load data')
     } finally {
@@ -279,6 +367,12 @@ export function SettingsPage() {
           onClick={() => setActiveTab('permissions')}
         >
           Permissions
+        </button>
+        <button
+          className={`settings-tab ${activeTab === 'tokens' ? 'active' : ''}`}
+          onClick={() => setActiveTab('tokens')}
+        >
+          API Tokens ({tokens.length})
         </button>
       </div>
 
@@ -530,6 +624,166 @@ export function SettingsPage() {
             ))}
             {groups.length === 0 && <p className="empty">No groups created yet</p>}
           </div>
+        </div>
+      ) : activeTab === 'tokens' ? (
+        <div className="settings-section">
+          {/* Create Token Card */}
+          <Card className="invite-user-card" padding="md">
+            <h3 className="invite-user-title">Create API Token</h3>
+            <div className="invite-user-form">
+              <div className="invite-field">
+                <label htmlFor="token-name">Name *</label>
+                <Input
+                  id="token-name"
+                  type="text"
+                  value={newTokenName}
+                  onChange={(e) => setNewTokenName(e.target.value)}
+                  placeholder="e.g. CLI integration"
+                  onKeyDown={(e) => e.key === 'Enter' && handleCreateToken()}
+                />
+              </div>
+              <div className="invite-field">
+                <label>Scopes</label>
+                <div className="token-scopes">
+                  <label className="token-scope-check">
+                    <input
+                      type="checkbox"
+                      checked={newTokenScopes.includes('read')}
+                      onChange={() => toggleScope('read')}
+                    />
+                    read
+                  </label>
+                  <label className="token-scope-check">
+                    <input
+                      type="checkbox"
+                      checked={newTokenScopes.includes('write')}
+                      onChange={() => toggleScope('write')}
+                    />
+                    write
+                  </label>
+                  <label className="token-scope-check">
+                    <input
+                      type="checkbox"
+                      checked={newTokenScopes.includes('admin')}
+                      onChange={() => toggleScope('admin')}
+                    />
+                    admin
+                  </label>
+                </div>
+              </div>
+              <div className="invite-field">
+                <label htmlFor="token-space">Space ID (optional)</label>
+                <Input
+                  id="token-space"
+                  type="text"
+                  value={newTokenSpaceId}
+                  onChange={(e) => setNewTokenSpaceId(e.target.value)}
+                  placeholder="Restrict to a space UUID"
+                />
+              </div>
+              <div className="invite-field">
+                <label htmlFor="token-expiry">Expires in (days, optional)</label>
+                <Input
+                  id="token-expiry"
+                  type="number"
+                  value={newTokenExpiry}
+                  onChange={(e) => setNewTokenExpiry(e.target.value)}
+                  placeholder="Leave empty for no expiry"
+                  min="1"
+                />
+              </div>
+              <Button
+                variant="primary"
+                onClick={handleCreateToken}
+                loading={isCreatingToken}
+                disabled={!newTokenName.trim()}
+              >
+                Create Token
+              </Button>
+            </div>
+          </Card>
+
+          {/* Tokens Table */}
+          <Card className="users-table-card" padding="none">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Prefix</th>
+                  <th>Scopes</th>
+                  <th>Space</th>
+                  <th>Created</th>
+                  <th>Last Used</th>
+                  <th>Expires</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tokens.map((t) => (
+                  <tr key={t.id}>
+                    <td style={{ fontWeight: 500 }}>{t.name}</td>
+                    <td><code className="token-prefix">{t.tokenPrefix}...</code></td>
+                    <td><span className="token-scopes-label">{formatScopes(t.scopes)}</span></td>
+                    <td>{t.spaceId || <span className="empty-inline">All spaces</span>}</td>
+                    <td>{formatDate(t.createdAt)}</td>
+                    <td>{t.lastUsedAt ? formatDate(t.lastUsedAt) : <span className="empty-inline">Never</span>}</td>
+                    <td>{t.expiresAt ? formatDate(t.expiresAt) : <span className="empty-inline">Never</span>}</td>
+                    <td>
+                      <Button variant="danger" size="sm" onClick={() => handleDeleteToken(t)}>
+                        Revoke
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+                {tokens.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="empty">No API tokens yet</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </Card>
+
+          {/* Token Secret Modal */}
+          <Modal
+            isOpen={showTokenSecretModal}
+            onClose={() => {
+              setShowTokenSecretModal(false)
+              setCreatedTokenSecret('')
+            }}
+            title="API Token Created"
+            footer={
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setShowTokenSecretModal(false)
+                  setCreatedTokenSecret('')
+                }}
+              >
+                Done
+              </Button>
+            }
+          >
+            <div className="token-secret-content">
+              <p className="token-secret-intro">
+                Token <strong>{createdTokenName}</strong> has been created.
+                Copy the secret below — it will <strong>never be shown again</strong>.
+              </p>
+              <div className="token-secret-box">
+                <code className="token-secret-code">{createdTokenSecret}</code>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText(createdTokenSecret)
+                    alert('Token secret copied to clipboard!')
+                  }}
+                >
+                  Copy
+                </Button>
+              </div>
+            </div>
+          </Modal>
         </div>
       ) : (
         <div className="settings-section">
