@@ -15,7 +15,7 @@ services:
       - "3000"
       - "3100"
     networks:
-      - mostdoc
+      - pinkas
 
   collab:
     build:
@@ -30,7 +30,7 @@ services:
       - "3001"
       - "3002"
     networks:
-      - mostdoc
+      - pinkas
 
   nginx:
     image: nginx:alpine
@@ -43,8 +43,8 @@ services:
       - go-api
       - collab
     networks:
-      - mostdoc
+      - pinkas
 
 networks:
-  mostdoc:
+  pinkas:
     driver: bridge

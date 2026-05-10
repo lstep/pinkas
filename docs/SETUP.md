@@ -9,7 +9,7 @@
 ## Project Structure
 
 ```
-mostdoc/
+pinkas/
 ├── cmd/server/main.go        Go API entrypoint
 ├── collab/                   Node.js Hocuspocus sidecar
 │   ├── server.js
@@ -178,10 +178,10 @@ npm run build
 
 ```bash
 # Build binary
-go build -o mostdoc cmd/server/main.go
+go build -o pinkas cmd/server/main.go
 
 # Or with Docker
-docker build -f Dockerfile.api -t mostdoc-api .
+docker build -f Dockerfile.api -t pinkas-api .
 ```
 
 The `Dockerfile.api` is a multi-stage build that compiles the Go binary and copies migrations into the image.

@@ -3,7 +3,7 @@ package pages
 import (
 	"testing"
 
-	"github.com/mostdoc/mostdoc/internal/db"
+	"github.com/pinkas/pinkas/internal/db"
 )
 
 func TestFTS5Search(t *testing.T) {

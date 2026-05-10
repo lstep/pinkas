@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/mostdoc/mostdoc/internal/httputil"
+	"github.com/pinkas/pinkas/internal/httputil"
 )
 
 // Middleware extracts and validates the JWT from the Authorization header.

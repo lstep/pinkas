@@ -10,17 +10,17 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mostdoc/mostdoc/internal/attachments"
-	"github.com/mostdoc/mostdoc/internal/auth"
-	"github.com/mostdoc/mostdoc/internal/db"
-	"github.com/mostdoc/mostdoc/internal/directories"
-	"github.com/mostdoc/mostdoc/internal/mcptokens"
-	"github.com/mostdoc/mostdoc/internal/mcp"
-	"github.com/mostdoc/mostdoc/internal/groups"
-	"github.com/mostdoc/mostdoc/internal/pages"
-	"github.com/mostdoc/mostdoc/internal/permissions"
-	"github.com/mostdoc/mostdoc/internal/sse"
-	"github.com/mostdoc/mostdoc/internal/spaces"
+	"github.com/pinkas/pinkas/internal/attachments"
+	"github.com/pinkas/pinkas/internal/auth"
+	"github.com/pinkas/pinkas/internal/db"
+	"github.com/pinkas/pinkas/internal/directories"
+	"github.com/pinkas/pinkas/internal/mcptokens"
+	"github.com/pinkas/pinkas/internal/mcp"
+	"github.com/pinkas/pinkas/internal/groups"
+	"github.com/pinkas/pinkas/internal/pages"
+	"github.com/pinkas/pinkas/internal/permissions"
+	"github.com/pinkas/pinkas/internal/sse"
+	"github.com/pinkas/pinkas/internal/spaces"
 )
 
 func main() {

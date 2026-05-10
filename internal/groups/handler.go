@@ -6,8 +6,8 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
-	"github.com/mostdoc/mostdoc/internal/auth"
-	"github.com/mostdoc/mostdoc/internal/httputil"
+	"github.com/pinkas/pinkas/internal/auth"
+	"github.com/pinkas/pinkas/internal/httputil"
 )
 
 // Handler holds HTTP handlers for group endpoints.

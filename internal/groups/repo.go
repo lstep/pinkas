@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 
-	sqlc "github.com/mostdoc/mostdoc/internal/db/query"
+	sqlc "github.com/pinkas/pinkas/internal/db/query"
 )
 
 // Repository wraps sqlc queries for group operations.

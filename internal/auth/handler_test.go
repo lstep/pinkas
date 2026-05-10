@@ -9,7 +9,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/mostdoc/mostdoc/internal/db"
+	"github.com/pinkas/pinkas/internal/db"
 )
 
 func setupTestAuth(t *testing.T) (*Handler, func()) {

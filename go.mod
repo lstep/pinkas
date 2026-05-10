@@ -1,4 +1,4 @@
-module github.com/mostdoc/mostdoc
+module github.com/pinkas/pinkas
 
 go 1.26.2
 

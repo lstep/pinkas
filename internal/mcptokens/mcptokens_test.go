@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mostdoc/mostdoc/internal/db"
+	"github.com/pinkas/pinkas/internal/db"
 )
 
 func TestCreateAndValidateToken(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"log/slog"
 
-	sqlc "github.com/mostdoc/mostdoc/internal/db/query"
+	sqlc "github.com/pinkas/pinkas/internal/db/query"
 )
 
 // Permission levels.

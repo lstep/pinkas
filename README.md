@@ -77,7 +77,7 @@ The Vite dev server starts on port `5173`.
 cd frontend && npm run build && cd ..
 
 # Start nginx with the local config
-docker run -d --name mostdoc-nginx \
+docker run -d --name pinkas-nginx \
   -p 8081:80 \
   -v $(pwd)/docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro \
   -v $(pwd)/frontend/dist:/usr/share/nginx/html:ro \

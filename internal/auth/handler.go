@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	sqlc "github.com/mostdoc/mostdoc/internal/db/query"
-	"github.com/mostdoc/mostdoc/internal/httputil"
+	sqlc "github.com/pinkas/pinkas/internal/db/query"
+	"github.com/pinkas/pinkas/internal/httputil"
 )
 
 // Handler holds HTTP handlers for auth endpoints.

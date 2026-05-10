@@ -8,8 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/mostdoc/mostdoc/internal/auth"
-	"github.com/mostdoc/mostdoc/internal/db"
+	"github.com/pinkas/pinkas/internal/auth"
+	"github.com/pinkas/pinkas/internal/db"
 )
 
 func setupTestHandler(t *testing.T) (*Handler, *Repository) {

@@ -7,7 +7,7 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=1 GOOS=linux go build -tags fts5 -o /mostdoc ./cmd/server
+RUN CGO_ENABLED=1 GOOS=linux go build -tags fts5 -o /pinkas ./cmd/server
 
 FROM debian:bookworm-slim
 
@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsqlite3-0 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /mostdoc /usr/local/bin/mostdoc
+COPY --from=builder /pinkas /usr/local/bin/pinkas
 COPY --from=builder /app/migrations /app/migrations
 
 RUN mkdir -p /data
@@ -24,4 +24,4 @@ ENV MIGRATIONS_PATH=file:///app/migrations
 EXPOSE 3000
 EXPOSE 3100
 
-CMD ["mostdoc"]
+CMD ["pinkas"]

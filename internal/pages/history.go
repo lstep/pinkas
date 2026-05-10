@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/mostdoc/mostdoc/internal/auth"
-	"github.com/mostdoc/mostdoc/internal/httputil"
-	"github.com/mostdoc/mostdoc/internal/permissions"
+	"github.com/pinkas/pinkas/internal/auth"
+	"github.com/pinkas/pinkas/internal/httputil"
+	"github.com/pinkas/pinkas/internal/permissions"
 )
 
 // SnapshotResponse is the JSON representation of a snapshot.

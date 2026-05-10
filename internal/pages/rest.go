@@ -9,11 +9,11 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/mostdoc/mostdoc/internal/auth"
-	"github.com/mostdoc/mostdoc/internal/httputil"
-	"github.com/mostdoc/mostdoc/internal/permissions"
-	sqlc "github.com/mostdoc/mostdoc/internal/db/query"
-	"github.com/mostdoc/mostdoc/internal/sse"
+	"github.com/pinkas/pinkas/internal/auth"
+	"github.com/pinkas/pinkas/internal/httputil"
+	"github.com/pinkas/pinkas/internal/permissions"
+	sqlc "github.com/pinkas/pinkas/internal/db/query"
+	"github.com/pinkas/pinkas/internal/sse"
 )
 
 // PageResponse is the JSON representation of a page.

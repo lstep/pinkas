@@ -7,9 +7,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/mostdoc/mostdoc/internal/auth"
-	"github.com/mostdoc/mostdoc/internal/permissions"
-	"github.com/mostdoc/mostdoc/internal/sse"
+	"github.com/pinkas/pinkas/internal/auth"
+	"github.com/pinkas/pinkas/internal/permissions"
+	"github.com/pinkas/pinkas/internal/sse"
 )
 
 type saveRequest struct {

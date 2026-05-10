@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/mostdoc/mostdoc/internal/auth"
-	"github.com/mostdoc/mostdoc/internal/httputil"
-	"github.com/mostdoc/mostdoc/internal/permissions"
+	"github.com/pinkas/pinkas/internal/auth"
+	"github.com/pinkas/pinkas/internal/httputil"
+	"github.com/pinkas/pinkas/internal/permissions"
 )
 
 // Handler holds HTTP handlers for space endpoints.

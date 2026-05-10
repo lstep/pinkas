@@ -7,10 +7,10 @@ import (
 	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
-	sqlc "github.com/mostdoc/mostdoc/internal/db/query"
-	"github.com/mostdoc/mostdoc/internal/mcptokens"
-	"github.com/mostdoc/mostdoc/internal/pages"
-	"github.com/mostdoc/mostdoc/internal/permissions"
+	sqlc "github.com/pinkas/pinkas/internal/db/query"
+	"github.com/pinkas/pinkas/internal/mcptokens"
+	"github.com/pinkas/pinkas/internal/pages"
+	"github.com/pinkas/pinkas/internal/permissions"
 )
 
 func (s *Server) registerTools() {

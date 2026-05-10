@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/mostdoc/mostdoc/internal/auth"
+	"github.com/pinkas/pinkas/internal/auth"
 )
 
 // Handler serves the SSE endpoint.

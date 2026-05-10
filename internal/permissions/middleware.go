@@ -3,8 +3,8 @@ package permissions
 import (
 	"net/http"
 
-	"github.com/mostdoc/mostdoc/internal/auth"
-	"github.com/mostdoc/mostdoc/internal/httputil"
+	"github.com/pinkas/pinkas/internal/auth"
+	"github.com/pinkas/pinkas/internal/httputil"
 )
 
 // TargetResolver extracts target type and ID from a request.

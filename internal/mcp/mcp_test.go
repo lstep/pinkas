@@ -10,12 +10,12 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
-	"github.com/mostdoc/mostdoc/internal/db"
-	"github.com/mostdoc/mostdoc/internal/directories"
-	"github.com/mostdoc/mostdoc/internal/mcptokens"
-	"github.com/mostdoc/mostdoc/internal/pages"
-	"github.com/mostdoc/mostdoc/internal/permissions"
-	"github.com/mostdoc/mostdoc/internal/spaces"
+	"github.com/pinkas/pinkas/internal/db"
+	"github.com/pinkas/pinkas/internal/directories"
+	"github.com/pinkas/pinkas/internal/mcptokens"
+	"github.com/pinkas/pinkas/internal/pages"
+	"github.com/pinkas/pinkas/internal/permissions"
+	"github.com/pinkas/pinkas/internal/spaces"
 )
 
 // testEnv holds the test environment for MCP tests.
