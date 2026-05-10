@@ -1,6 +1,31 @@
 # Pinkas
 
-A self-hosted, open-source collaborative Markdown wiki. Multiple users can edit documents simultaneously in real time. All documents are stored as plain `.md` files on the server filesystem — readable and portable without the application.
+A self-hosted, open-source collaborative Markdown wiki. Multiple users can edit documents simultaneously in real time (powered by Yjs + Hocuspocus). All documents are stored as plain `.md` files on the server filesystem — readable and portable without the application.
+
+## Features
+
+- **Real-time collaboration** — Multiple users edit the same document simultaneously with live cursor awareness and conflict resolution (Yjs + Hocuspocus)
+- **WYSIWYG Markdown editor** — Rich text editing via Tiptap; supports headings, code blocks, blockquotes, lists, inline images, video embeds, and file attachments
+- **Granular permissions** — Role-based access (viewer / editor / admin) at the space, directory, and page level
+- **Spaces & directories** — Organize pages into a tree structure within named spaces
+- **Full-text search** — Powered by SQLite FTS5, search across all pages with ranking and deduplication
+- **Page history** — Automatic snapshots on every save; browse and restore previous versions
+- **File attachments** — Upload images, videos, and files per page (stored on disk)
+- **MCP server** — Model Context Protocol server (port `3100`) for AI tool integration (search, read, create, update pages)
+- **SSE real-time events** — Server-Sent Events for live UI updates (page changes, directory moves, etc.)
+- **Self-hosted & portable** — Single SQLite database, plain Markdown files on disk, Docker Compose deployment
+- **Continuous backup** — Litestream replication of the SQLite database to S3, SFTP, or local volume
+
+## Ports Overview
+
+| Service | Port | Description |
+|---------|------|-------------|
+| Go API | `3000` | REST API, auth, permissions, SSE, file serving |
+| Hocuspocus (collab) | `3001` | WebSocket for real-time collaboration |
+| Hocuspocus health | `3002` | Sidecar health endpoint |
+| MCP server | `3100` | Model Context Protocol (SSE + messages) |
+| Nginx / Frontend | `8081` | Reverse proxy (production) |
+| Vite dev server | `5173` | Frontend dev mode (development only) |
 
 ## Quick Start
 
@@ -117,19 +142,28 @@ Shared volume /data
 ## Project Structure
 
 ```
-├── cmd/server/          Go application entry point
+├── cmd/server/              Go application entry point
 ├── internal/
-│   ├── db/              Database connection, migrations
-│   ├── pages/           Page CRUD, tree operations
-│   ├── httputil/        HTTP utilities
-│   └── middleware/      Auth, permission middleware
-├── collab/              Node.js Hocuspocus sidecar
-├── frontend/            React + TypeScript frontend
-├── docker/              Nginx configuration
-├── migrations/          SQL migration files
-├── data/                Runtime data (SQLite, docs, attachments)
-├── docker-compose.yml   Docker orchestration
-└── Dockerfile.api       Go API Docker image
+│   ├── attachments/         File upload handling
+│   ├── auth/                JWT auth, middleware, user CRUD
+│   ├── db/                  Database connection, migrations, seed
+│   │   └── query/           SQLC generated Go code
+│   ├── directories/         Directory CRUD and tree operations
+│   ├── groups/              Group CRUD and membership
+│   ├── httputil/            JSON responses, error helpers
+│   ├── mcp/                 MCP server (SSE + tools)
+│   ├── mcptokens/           MCP API token management
+│   ├── pages/               Page CRUD, history, search, snapshots
+│   ├── permissions/         Permission levels, resolver, middleware
+│   ├── spaces/              Space CRUD
+│   └── sse/                 Server-Sent Events hub
+├── collab/                  Node.js Hocuspocus sidecar (Yjs)
+├── frontend/                React + TypeScript + Vite + Tiptap
+├── docker/                  Nginx configuration
+├── migrations/              SQL migration files
+├── data/                    Runtime data (SQLite, docs, attachments)
+├── docker-compose.yml       Docker orchestration
+└── Dockerfile.api           Go API Docker image
 ```
 
 ## Configuration
