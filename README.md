@@ -1,5 +1,9 @@
 # Pinkas
 
+<p align="center">
+  <img src="assets/pinkas-cover.jpg" alt="Pinkas cover" width="800">
+</p>
+
 A self-hosted, open-source collaborative Markdown wiki. Multiple users can edit documents simultaneously in real time (powered by Yjs + Hocuspocus). All documents are stored as plain `.md` files on the server filesystem — readable and portable without the application.
 
 ## Features
