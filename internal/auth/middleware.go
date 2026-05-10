@@ -49,12 +49,12 @@ func UserFromContext(ctx context.Context) (UserInfo, bool) {
 
 func extractBearerToken(r *http.Request) string {
 	header := r.Header.Get("Authorization")
-	if header == "" {
-		return ""
+	if header != "" {
+		parts := strings.SplitN(header, " ", 2)
+		if len(parts) == 2 && strings.ToLower(parts[0]) == "bearer" {
+			return parts[1]
+		}
 	}
-	parts := strings.SplitN(header, " ", 2)
-	if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
-		return ""
-	}
-	return parts[1]
+	// Fall back to token query param (for SSE where EventSource can't set headers)
+	return r.URL.Query().Get("token")
 }

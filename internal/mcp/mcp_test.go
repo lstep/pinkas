@@ -59,7 +59,7 @@ func newTestEnv(t *testing.T) *testEnv {
 	mcpTokenSvc := mcptokens.NewService(mcpTokenRepo)
 
 	err = spacesRepo.Create(context.Background(), "space-1", "Test Space", "test-space",
-		"editor", true, nil)
+		"📁", "editor", true, nil)
 	if err != nil {
 		t.Fatalf("create space: %v", err)
 	}
