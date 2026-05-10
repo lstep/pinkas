@@ -168,7 +168,7 @@ func (r *Repository) ListMyPages(ctx context.Context, userID string, limit int64
 	})
 }
 
-// SaveSnapshot inserts a page snapshot.
+// SaveSnapshot inserts a page snapshot and updates the page's updated_at timestamp.
 func (r *Repository) SaveSnapshot(ctx context.Context, pageID, markdown string, yjsSnapshot []byte, authorID string) error {
 	id := uuid.New().String()
 	_, err := r.conn.ExecContext(ctx,
@@ -178,10 +178,17 @@ func (r *Repository) SaveSnapshot(ctx context.Context, pageID, markdown string, 
 	if err != nil {
 		return fmt.Errorf("insert snapshot: %w", err)
 	}
+	_, err = r.conn.ExecContext(ctx,
+		"UPDATE pages SET updated_at = strftime('%s', 'now') WHERE id = ?",
+		pageID,
+	)
+	if err != nil {
+		return fmt.Errorf("update page updated_at: %w", err)
+	}
 	return nil
 }
 
-// SaveSnapshotWithLabel inserts a page snapshot with a label.
+// SaveSnapshotWithLabel inserts a page snapshot with a label and updates the page's updated_at timestamp.
 func (r *Repository) SaveSnapshotWithLabel(ctx context.Context, pageID, markdown string, yjsSnapshot []byte, authorID, label string) (string, error) {
 	id := uuid.New().String()
 	_, err := r.conn.ExecContext(ctx,
@@ -190,6 +197,13 @@ func (r *Repository) SaveSnapshotWithLabel(ctx context.Context, pageID, markdown
 	)
 	if err != nil {
 		return "", fmt.Errorf("insert snapshot: %w", err)
+	}
+	_, err = r.conn.ExecContext(ctx,
+		"UPDATE pages SET updated_at = strftime('%s', 'now') WHERE id = ?",
+		pageID,
+	)
+	if err != nil {
+		return "", fmt.Errorf("update page updated_at: %w", err)
 	}
 	return id, nil
 }
