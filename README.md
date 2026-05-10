@@ -1,4 +1,4 @@
-# Mostdoc
+# Pinkas
 
 A self-hosted, open-source collaborative Markdown wiki. Multiple users can edit documents simultaneously in real time. All documents are stored as plain `.md` files on the server filesystem — readable and portable without the application.
 
