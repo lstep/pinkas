@@ -143,6 +143,31 @@ setInterval(async () => {
   }
 }, AUTO_SAVE_INTERVAL)
 
+// Custom markdown serializers for @tiptap-codeless/extension-file-upload block nodes.
+// prosemirror-markdown's defaultMarkdownSerializer only knows standard nodes
+// (paragraph, heading, image, etc.) and silently drops unknown block nodes.
+defaultMarkdownSerializer.nodes.uploadImage = (state, node) => {
+  const alt = node.attrs.alt || ''
+  const src = node.attrs.src || ''
+  const title = node.attrs.title ? ` "${node.attrs.title}"` : ''
+  state.write(`![${alt}](${src}${title})`)
+  state.closeBlock(node)
+}
+
+defaultMarkdownSerializer.nodes.uploadVideo = (state, node) => {
+  const src = node.attrs.src || ''
+  const fileName = node.attrs.fileName || 'video'
+  state.write(`[${fileName}](${src})`)
+  state.closeBlock(node)
+}
+
+defaultMarkdownSerializer.nodes.uploadFileCard = (state, node) => {
+  const url = node.attrs.url || ''
+  const fileName = node.attrs.fileName || 'file'
+  state.write(`[${fileName}](${url})`)
+  state.closeBlock(node)
+}
+
 // Yjs → ProseMirror → Markdown conversion
 function yjsToMarkdown(ydoc) {
   // Tiptap's @tiptap/extension-collaboration stores content in the 'default' XML fragment.
