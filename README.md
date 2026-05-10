@@ -1,8 +1,5 @@
 # Pinkas
-
-<p align="center">
-  <img src="assets/pinkas-cover.jpg" alt="Pinkas cover" width="800">
-</p>
+![cover-v5-optimized](./assets/pinkas-cover.jpg)
 
 A self-hosted, open-source collaborative Markdown wiki. Multiple users can edit documents simultaneously in real time (powered by Yjs + Hocuspocus). All documents are stored as plain `.md` files on the server filesystem — readable and portable without the application.
 
@@ -19,6 +16,11 @@ A self-hosted, open-source collaborative Markdown wiki. Multiple users can edit 
 - **SSE real-time events** — Server-Sent Events for live UI updates (page changes, directory moves, etc.)
 - **Self-hosted & portable** — Single SQLite database, plain Markdown files on disk, Docker Compose deployment
 - **Continuous backup** — Litestream replication of the SQLite database to S3, SFTP, or local volume
+
+## Screenshots
+
+![cover-v5-optimized](./assets/screenshot.png)
+
 
 ## Ports Overview
 
