@@ -32,6 +32,19 @@ type GroupMember struct {
 	UserID  string `json:"user_id"`
 }
 
+type McpToken struct {
+	ID          string         `json:"id"`
+	UserID      string         `json:"user_id"`
+	Name        string         `json:"name"`
+	TokenPrefix string         `json:"token_prefix"`
+	TokenHash   string         `json:"token_hash"`
+	Scopes      string         `json:"scopes"`
+	SpaceID     sql.NullString `json:"space_id"`
+	LastUsedAt  sql.NullInt64  `json:"last_used_at"`
+	CreatedAt   int64          `json:"created_at"`
+	ExpiresAt   sql.NullInt64  `json:"expires_at"`
+}
+
 type Page struct {
 	ID          string         `json:"id"`
 	SpaceID     sql.NullString `json:"space_id"`
@@ -90,6 +103,7 @@ type Space struct {
 	McpWriteEnabled       sql.NullInt64  `json:"mcp_write_enabled"`
 	SnapshotRetentionDays sql.NullInt64  `json:"snapshot_retention_days"`
 	CreatedAt             sql.NullInt64  `json:"created_at"`
+	Icon                  string         `json:"icon"`
 }
 
 type User struct {

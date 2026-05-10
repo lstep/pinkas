@@ -91,9 +91,13 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	if defaultPerm == "" {
 		defaultPerm = "none"
 	}
+	icon := req.Icon
+	if icon == "" {
+		icon = "📂"
+	}
 
 	id := GenerateID()
-	if err := h.repo.Create(r.Context(), id, req.Name, slug, defaultPerm, req.McpWriteEnabled, req.SnapshotRetentionDays); err != nil {
+	if err := h.repo.Create(r.Context(), id, req.Name, slug, icon, defaultPerm, req.McpWriteEnabled, req.SnapshotRetentionDays); err != nil {
 		h.logger.Error("create space failed", "error", err)
 		httputil.WriteError(w, http.StatusInternalServerError, "internal_error", "Failed to create space")
 		return
@@ -162,6 +166,11 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		name = req.Name
 	}
 
+	icon := existing.Icon
+	if req.Icon != "" {
+		icon = req.Icon
+	}
+
 	defaultPerm := "none"
 	if existing.DefaultPermission.Valid {
 		defaultPerm = existing.DefaultPermission.String
@@ -184,7 +193,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		retentionDays = req.SnapshotRetentionDays
 	}
 
-	if err := h.repo.Update(r.Context(), id, name, defaultPerm, mcpEnabled, retentionDays); err != nil {
+	if err := h.repo.Update(r.Context(), id, name, icon, defaultPerm, mcpEnabled, retentionDays); err != nil {
 		h.logger.Error("update space failed", "error", err)
 		httputil.WriteError(w, http.StatusInternalServerError, "internal_error", "Failed to update space")
 		return

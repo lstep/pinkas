@@ -5,6 +5,7 @@ type Space struct {
 	ID                    string  `json:"id"`
 	Name                  string  `json:"name"`
 	Slug                  string  `json:"slug"`
+	Icon                  string  `json:"icon"`
 	DefaultPermission     string  `json:"defaultPermission"`
 	McpWriteEnabled       bool    `json:"mcpWriteEnabled"`
 	SnapshotRetentionDays *int64  `json:"snapshotRetentionDays,omitempty"`
@@ -14,6 +15,7 @@ type Space struct {
 // CreateRequest is the body for POST /api/spaces.
 type CreateRequest struct {
 	Name                  string `json:"name"`
+	Icon                  string `json:"icon,omitempty"`
 	DefaultPermission     string `json:"defaultPermission,omitempty"`
 	McpWriteEnabled       bool   `json:"mcpWriteEnabled,omitempty"`
 	SnapshotRetentionDays *int64 `json:"snapshotRetentionDays,omitempty"`
@@ -22,6 +24,7 @@ type CreateRequest struct {
 // UpdateRequest is the body for PATCH /api/spaces/{id}.
 type UpdateRequest struct {
 	Name                  string `json:"name,omitempty"`
+	Icon                  string `json:"icon,omitempty"`
 	DefaultPermission     string `json:"defaultPermission,omitempty"`
 	McpWriteEnabled       *bool  `json:"mcpWriteEnabled,omitempty"`
 	SnapshotRetentionDays *int64 `json:"snapshotRetentionDays,omitempty"`

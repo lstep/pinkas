@@ -9,6 +9,8 @@ sql:
       - "migrations/005_split_directories_pages.up.sql"
       - "migrations/006_permissions.up.sql"
       - "migrations/007_snapshot_index.up.sql"
+      - "migrations/008_mcp_tokens.up.sql"
+      - "migrations/009_spaces_icon.up.sql"
     queries: "queries/"
     gen:
       go:

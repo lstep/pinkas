@@ -33,6 +33,13 @@ func NewRepository(conn *sql.DB) *Repository {
 	return &Repository{queries: sqlc.New(conn), conn: conn}
 }
 
+// GetSpaceName retrieves the name of a space by ID.
+func (r *Repository) GetSpaceName(ctx context.Context, spaceID string) (string, error) {
+	var name string
+	err := r.conn.QueryRowContext(ctx, "SELECT name FROM spaces WHERE id = ?", spaceID).Scan(&name)
+	return name, err
+}
+
 // GetPage fetches a page by ID.
 func (r *Repository) GetPage(ctx context.Context, id string) (sqlc.Page, error) {
 	return r.queries.GetPage(ctx, id)
@@ -145,6 +152,19 @@ func (r *Repository) GetPagesBySlugPrefix(ctx context.Context, spaceID, slugPref
 	return r.queries.GetPagesBySlugPrefix(ctx, sqlc.GetPagesBySlugPrefixParams{
 		SpaceID: sql.NullString{String: spaceID, Valid: spaceID != ""},
 		Slug:    sql.NullString{String: slugPrefix + "%", Valid: true},
+	})
+}
+
+// ListRecentPages returns recently updated pages across all spaces.
+func (r *Repository) ListRecentPages(ctx context.Context, limit int64) ([]sqlc.Page, error) {
+	return r.queries.ListRecentPages(ctx, limit)
+}
+
+// ListMyPages returns pages created by a specific user.
+func (r *Repository) ListMyPages(ctx context.Context, userID string, limit int64) ([]sqlc.Page, error) {
+	return r.queries.ListMyPages(ctx, sqlc.ListMyPagesParams{
+		CreatedBy: sql.NullString{String: userID, Valid: userID != ""},
+		Limit:     limit,
 	})
 }
 

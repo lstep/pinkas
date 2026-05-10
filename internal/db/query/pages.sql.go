@@ -159,6 +159,54 @@ func (q *Queries) GetPagesBySlugPrefix(ctx context.Context, arg GetPagesBySlugPr
 	return items, nil
 }
 
+const listMyPages = `-- name: ListMyPages :many
+SELECT p.id, p.space_id, p.directory_id, p.title, p.slug, p.position, p.created_by, p.created_at, p.updated_at, p.icon
+FROM pages p
+JOIN spaces s ON p.space_id = s.id
+WHERE p.created_by = ?
+ORDER BY p.updated_at DESC
+LIMIT ?
+`
+
+type ListMyPagesParams struct {
+	CreatedBy sql.NullString `json:"created_by"`
+	Limit     int64          `json:"limit"`
+}
+
+func (q *Queries) ListMyPages(ctx context.Context, arg ListMyPagesParams) ([]Page, error) {
+	rows, err := q.db.QueryContext(ctx, listMyPages, arg.CreatedBy, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Page{}
+	for rows.Next() {
+		var i Page
+		if err := rows.Scan(
+			&i.ID,
+			&i.SpaceID,
+			&i.DirectoryID,
+			&i.Title,
+			&i.Slug,
+			&i.Position,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Icon,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPagesByDirectory = `-- name: ListPagesByDirectory :many
 SELECT id, space_id, directory_id, title, slug, position, created_by, created_at, updated_at, icon
 FROM pages
@@ -168,6 +216,48 @@ ORDER BY position
 
 func (q *Queries) ListPagesByDirectory(ctx context.Context, directoryID sql.NullString) ([]Page, error) {
 	rows, err := q.db.QueryContext(ctx, listPagesByDirectory, directoryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Page{}
+	for rows.Next() {
+		var i Page
+		if err := rows.Scan(
+			&i.ID,
+			&i.SpaceID,
+			&i.DirectoryID,
+			&i.Title,
+			&i.Slug,
+			&i.Position,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Icon,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRecentPages = `-- name: ListRecentPages :many
+SELECT p.id, p.space_id, p.directory_id, p.title, p.slug, p.position, p.created_by, p.created_at, p.updated_at, p.icon
+FROM pages p
+JOIN spaces s ON p.space_id = s.id
+ORDER BY p.updated_at DESC
+LIMIT ?
+`
+
+func (q *Queries) ListRecentPages(ctx context.Context, limit int64) ([]Page, error) {
+	rows, err := q.db.QueryContext(ctx, listRecentPages, limit)
 	if err != nil {
 		return nil, err
 	}

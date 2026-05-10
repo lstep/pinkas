@@ -197,6 +197,8 @@ function normalizeSpace(raw: any): Space {
     name: raw.name,
     slug: raw.slug,
     default_permission: raw.defaultPermission ?? raw.default_permission ?? 'none',
+    icon: raw.icon ?? null,
+    createdAt: raw.createdAt ?? undefined,
   }
 }
 
@@ -213,6 +215,75 @@ export interface Space {
   name: string
   slug: string
   default_permission: string
+  icon?: string | null
+  createdAt?: number
+}
+
+// ─── Spaces CRUD ──────────────────────────────────────
+
+export async function createSpace(name: string, slug?: string, icon?: string): Promise<Space> {
+  const doFetch = () =>
+    fetch(`${API_BASE}/spaces`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ name, slug, icon }),
+    })
+  const res = await doFetch()
+  const finalRes = await handleResponse(res, doFetch)
+  const data = await finalRes.json()
+  return normalizeSpace(data.space || data)
+}
+
+export async function updateSpace(id: string, data: { name?: string; slug?: string; icon?: string }): Promise<Space> {
+  const doFetch = () =>
+    fetch(`${API_BASE}/spaces/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify(data),
+    })
+  const res = await doFetch()
+  const finalRes = await handleResponse(res, doFetch)
+  return finalRes.json()
+}
+
+export async function deleteSpace(id: string): Promise<void> {
+  const doFetch = () =>
+    fetch(`${API_BASE}/spaces/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: getHeaders(),
+    })
+  const res = await doFetch()
+  await handleResponse(res, doFetch)
+}
+
+// ─── Recent & My Pages ─────────────────────────────────
+
+export interface PageSummary {
+  id: string
+  spaceId: string
+  title: string
+  slug: string
+  icon: string | null
+  updatedAt: number
+  createdAt: number
+  createdBy: string
+  spaceName: string
+}
+
+export async function listRecentPages(limit = 20): Promise<PageSummary[]> {
+  const doFetch = () => fetch(`${API_BASE}/pages/recent?limit=${limit}`, { headers: getHeaders() })
+  const res = await doFetch()
+  const finalRes = await handleResponse(res, doFetch)
+  const data = await finalRes.json()
+  return data.pages || []
+}
+
+export async function listMyPages(limit = 20): Promise<PageSummary[]> {
+  const doFetch = () => fetch(`${API_BASE}/pages/mine?limit=${limit}`, { headers: getHeaders() })
+  const res = await doFetch()
+  const finalRes = await handleResponse(res, doFetch)
+  const data = await finalRes.json()
+  return data.pages || []
 }
 
 // ─── Search ────────────────────────────────────────────

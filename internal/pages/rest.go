@@ -20,6 +20,7 @@ import (
 type PageResponse struct {
 	ID           string  `json:"id"`
 	SpaceID      string  `json:"spaceId,omitempty"`
+	SpaceName    string  `json:"spaceName,omitempty"`
 	DirectoryID  *string `json:"directoryId,omitempty"`
 	DirectorySlug *string `json:"directorySlug,omitempty"`
 	Title        string  `json:"title"`
@@ -81,6 +82,8 @@ func (h *RESTHandler) RegisterRESTRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/pages/{id}/snapshots", auth.RequireAuth(h.ListSnapshots))
 	mux.HandleFunc("GET /api/pages/{id}/snapshots/{snapshotId}", auth.RequireAuth(h.GetSnapshot))
 	mux.HandleFunc("POST /api/pages/{id}/restore", auth.RequireAuth(h.RestoreSnapshot))
+	mux.HandleFunc("GET /api/pages/recent", auth.RequireAuth(h.ListRecent))
+	mux.HandleFunc("GET /api/pages/mine", auth.RequireAuth(h.ListMyPages))
 }
 
 // ListRoot returns root pages for a space (pages with no directory).
@@ -481,6 +484,80 @@ func levelToName(level int) string {
 }
 
 // checkAccess verifies the user has at least minLevel on the target. Returns false and writes an error response if denied.
+// ListRecent returns recently updated pages across all spaces.
+func (h *RESTHandler) ListRecent(w http.ResponseWriter, r *http.Request) {
+	limit := int64(20)
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if n, err := strconv.ParseInt(l, 10, 64); err == nil && n > 0 && n <= 100 {
+			limit = n
+		}
+	}
+
+	pages, err := h.repo.ListRecentPages(r.Context(), limit)
+	if err != nil {
+		h.logger.Error("list recent pages failed", "error", err)
+		httputil.WriteError(w, http.StatusInternalServerError, "internal_error", "Failed to list pages")
+		return
+	}
+
+	ctx := r.Context()
+	result := make([]PageResponse, 0, len(pages))
+	for _, p := range pages {
+		resp := toPageResponse(p)
+		if p.SpaceID.Valid {
+			if n, err := h.repo.GetSpaceName(ctx, p.SpaceID.String); err == nil {
+				resp.SpaceName = n
+			}
+		}
+		result = append(result, resp)
+	}
+
+	// Filter by permission for non-admins
+	user, _ := auth.UserFromContext(ctx)
+	if user.Role != "admin" {
+		result = h.filterPages(ctx, user.ID, result)
+	}
+
+	httputil.JSON(w, http.StatusOK, map[string]interface{}{"pages": result})
+}
+
+// ListMyPages returns pages created by the current user.
+func (h *RESTHandler) ListMyPages(w http.ResponseWriter, r *http.Request) {
+	user, ok := auth.UserFromContext(r.Context())
+	if !ok {
+		httputil.WriteError(w, http.StatusUnauthorized, "unauthorized", "Not authenticated")
+		return
+	}
+
+	ctx := r.Context()
+	limit := int64(20)
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if n, err := strconv.ParseInt(l, 10, 64); err == nil && n > 0 && n <= 100 {
+			limit = n
+		}
+	}
+
+	pages, err := h.repo.ListMyPages(ctx, user.ID, limit)
+	if err != nil {
+		h.logger.Error("list my pages failed", "error", err)
+		httputil.WriteError(w, http.StatusInternalServerError, "internal_error", "Failed to list pages")
+		return
+	}
+
+	result := make([]PageResponse, 0, len(pages))
+	for _, p := range pages {
+		resp := toPageResponse(p)
+		if p.SpaceID.Valid {
+			if n, err := h.repo.GetSpaceName(ctx, p.SpaceID.String); err == nil {
+				resp.SpaceName = n
+			}
+		}
+		result = append(result, resp)
+	}
+
+	httputil.JSON(w, http.StatusOK, map[string]interface{}{"pages": result})
+}
+
 func (h *RESTHandler) checkAccess(w http.ResponseWriter, r *http.Request, targetType, targetID string, minLevel int) bool {
 	user, ok := auth.UserFromContext(r.Context())
 	if !ok {

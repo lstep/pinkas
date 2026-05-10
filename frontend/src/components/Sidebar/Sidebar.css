@@ -290,3 +290,35 @@
   background: var(--color-bg-alt);
   border-color: var(--color-border);
 }
+
+.sidebar-home-link {
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  padding: var(--sp-1) 0;
+  display: block;
+}
+
+.sidebar-home-link:hover {
+  color: var(--color-accent);
+}
+
+.sidebar-footer {
+  padding: var(--sp-2) var(--sp-4);
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.sidebar-footer-link {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  padding: var(--sp-1) 0;
+  display: block;
+}
+
+.sidebar-footer-link:hover {
+  color: var(--color-accent);
+}

@@ -20,7 +20,7 @@ func NewRepository(db *sql.DB) *Repository {
 }
 
 // Create inserts a new space.
-func (r *Repository) Create(ctx context.Context, id, name, slug, defaultPermission string, mcpWriteEnabled bool, snapshotRetentionDays *int64) error {
+func (r *Repository) Create(ctx context.Context, id, name, slug, icon, defaultPermission string, mcpWriteEnabled bool, snapshotRetentionDays *int64) error {
 	var mcp int64 = 1
 	if !mcpWriteEnabled {
 		mcp = 0
@@ -29,10 +29,14 @@ func (r *Repository) Create(ctx context.Context, id, name, slug, defaultPermissi
 	if snapshotRetentionDays != nil {
 		retention = sql.NullInt64{Int64: *snapshotRetentionDays, Valid: true}
 	}
+	if icon == "" {
+		icon = "📂"
+	}
 	return r.queries.CreateSpace(ctx, sqlc.CreateSpaceParams{
 		ID:                    id,
 		Name:                  name,
 		Slug:                  slug,
+		Icon:                  icon,
 		DefaultPermission:     sql.NullString{String: defaultPermission, Valid: defaultPermission != ""},
 		McpWriteEnabled:       sql.NullInt64{Int64: mcp, Valid: true},
 		SnapshotRetentionDays: retention,
@@ -55,7 +59,7 @@ func (r *Repository) List(ctx context.Context) ([]sqlc.Space, error) {
 }
 
 // Update modifies a space.
-func (r *Repository) Update(ctx context.Context, id, name, defaultPermission string, mcpWriteEnabled bool, snapshotRetentionDays *int64) error {
+func (r *Repository) Update(ctx context.Context, id, name, icon, defaultPermission string, mcpWriteEnabled bool, snapshotRetentionDays *int64) error {
 	var mcp sql.NullInt64
 	if mcpWriteEnabled {
 		mcp = sql.NullInt64{Int64: 1, Valid: true}
@@ -66,11 +70,15 @@ func (r *Repository) Update(ctx context.Context, id, name, defaultPermission str
 	if snapshotRetentionDays != nil {
 		retention = sql.NullInt64{Int64: *snapshotRetentionDays, Valid: true}
 	}
+	if icon == "" {
+		icon = "📂"
+	}
 	return r.queries.UpdateSpace(ctx, sqlc.UpdateSpaceParams{
 		Name:                  name,
 		DefaultPermission:     sql.NullString{String: defaultPermission, Valid: defaultPermission != ""},
 		McpWriteEnabled:       mcp,
 		SnapshotRetentionDays: retention,
+		Icon:                  icon,
 		ID:                    id,
 	})
 }
@@ -106,6 +114,7 @@ func ScanSpace(s sqlc.Space) Space {
 		ID:                    s.ID,
 		Name:                  s.Name,
 		Slug:                  s.Slug,
+		Icon:                  s.Icon,
 		DefaultPermission:     defaultPerm,
 		McpWriteEnabled:       mcpEnabled,
 		SnapshotRetentionDays: retentionDays,

@@ -11,8 +11,8 @@ import (
 )
 
 const createSpace = `-- name: CreateSpace :exec
-INSERT INTO spaces (id, name, slug, default_permission, mcp_write_enabled, snapshot_retention_days)
-VALUES (?, ?, ?, ?, ?, ?)
+INSERT INTO spaces (id, name, slug, default_permission, mcp_write_enabled, snapshot_retention_days, icon)
+VALUES (?, ?, ?, ?, ?, ?, ?)
 `
 
 type CreateSpaceParams struct {
@@ -22,6 +22,7 @@ type CreateSpaceParams struct {
 	DefaultPermission     sql.NullString `json:"default_permission"`
 	McpWriteEnabled       sql.NullInt64  `json:"mcp_write_enabled"`
 	SnapshotRetentionDays sql.NullInt64  `json:"snapshot_retention_days"`
+	Icon                  string         `json:"icon"`
 }
 
 func (q *Queries) CreateSpace(ctx context.Context, arg CreateSpaceParams) error {
@@ -32,6 +33,7 @@ func (q *Queries) CreateSpace(ctx context.Context, arg CreateSpaceParams) error 
 		arg.DefaultPermission,
 		arg.McpWriteEnabled,
 		arg.SnapshotRetentionDays,
+		arg.Icon,
 	)
 	return err
 }
@@ -46,7 +48,7 @@ func (q *Queries) DeleteSpace(ctx context.Context, id string) error {
 }
 
 const getSpace = `-- name: GetSpace :one
-SELECT id, workspace_id, name, slug, default_permission, mcp_write_enabled, snapshot_retention_days, created_at
+SELECT id, workspace_id, name, slug, default_permission, mcp_write_enabled, snapshot_retention_days, created_at, icon
 FROM spaces
 WHERE id = ?
 `
@@ -63,12 +65,13 @@ func (q *Queries) GetSpace(ctx context.Context, id string) (Space, error) {
 		&i.McpWriteEnabled,
 		&i.SnapshotRetentionDays,
 		&i.CreatedAt,
+		&i.Icon,
 	)
 	return i, err
 }
 
 const getSpaceBySlug = `-- name: GetSpaceBySlug :one
-SELECT id, workspace_id, name, slug, default_permission, mcp_write_enabled, snapshot_retention_days, created_at
+SELECT id, workspace_id, name, slug, default_permission, mcp_write_enabled, snapshot_retention_days, created_at, icon
 FROM spaces
 WHERE slug = ?
 `
@@ -85,12 +88,13 @@ func (q *Queries) GetSpaceBySlug(ctx context.Context, slug string) (Space, error
 		&i.McpWriteEnabled,
 		&i.SnapshotRetentionDays,
 		&i.CreatedAt,
+		&i.Icon,
 	)
 	return i, err
 }
 
 const listSpaces = `-- name: ListSpaces :many
-SELECT id, workspace_id, name, slug, default_permission, mcp_write_enabled, snapshot_retention_days, created_at
+SELECT id, workspace_id, name, slug, default_permission, mcp_write_enabled, snapshot_retention_days, created_at, icon
 FROM spaces
 ORDER BY name
 `
@@ -113,6 +117,7 @@ func (q *Queries) ListSpaces(ctx context.Context) ([]Space, error) {
 			&i.McpWriteEnabled,
 			&i.SnapshotRetentionDays,
 			&i.CreatedAt,
+			&i.Icon,
 		); err != nil {
 			return nil, err
 		}
@@ -129,7 +134,7 @@ func (q *Queries) ListSpaces(ctx context.Context) ([]Space, error) {
 
 const updateSpace = `-- name: UpdateSpace :exec
 UPDATE spaces
-SET name = ?, default_permission = ?, mcp_write_enabled = ?, snapshot_retention_days = ?, updated_at = strftime('%s', 'now')
+SET name = ?, default_permission = ?, mcp_write_enabled = ?, snapshot_retention_days = ?, icon = ?, updated_at = strftime('%s', 'now')
 WHERE id = ?
 `
 
@@ -138,6 +143,7 @@ type UpdateSpaceParams struct {
 	DefaultPermission     sql.NullString `json:"default_permission"`
 	McpWriteEnabled       sql.NullInt64  `json:"mcp_write_enabled"`
 	SnapshotRetentionDays sql.NullInt64  `json:"snapshot_retention_days"`
+	Icon                  string         `json:"icon"`
 	ID                    string         `json:"id"`
 }
 
@@ -147,6 +153,7 @@ func (q *Queries) UpdateSpace(ctx context.Context, arg UpdateSpaceParams) error 
 		arg.DefaultPermission,
 		arg.McpWriteEnabled,
 		arg.SnapshotRetentionDays,
+		arg.Icon,
 		arg.ID,
 	)
 	return err

@@ -51,4 +51,19 @@ FROM pages
 WHERE space_id = ? AND slug LIKE ?
 ORDER BY slug;
 
+-- name: ListRecentPages :many
+SELECT p.id, p.space_id, p.directory_id, p.title, p.slug, p.position, p.created_by, p.created_at, p.updated_at, p.icon
+FROM pages p
+JOIN spaces s ON p.space_id = s.id
+ORDER BY p.updated_at DESC
+LIMIT ?;
+
+-- name: ListMyPages :many
+SELECT p.id, p.space_id, p.directory_id, p.title, p.slug, p.position, p.created_by, p.created_at, p.updated_at, p.icon
+FROM pages p
+JOIN spaces s ON p.space_id = s.id
+WHERE p.created_by = ?
+ORDER BY p.updated_at DESC
+LIMIT ?;
+
 
