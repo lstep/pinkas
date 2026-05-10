@@ -146,23 +146,26 @@ setInterval(async () => {
 // Custom markdown serializers for @tiptap-codeless/extension-file-upload block nodes.
 // prosemirror-markdown's defaultMarkdownSerializer only knows standard nodes
 // (paragraph, heading, image, etc.) and silently drops unknown block nodes.
+// The ?token= query string is stripped from URLs — the frontend appends the
+// JWT so <img> tags can load authenticated images in the browser, but in
+// the markdown export on disk the token is unnecessary, noise, and expiring.
 defaultMarkdownSerializer.nodes.uploadImage = (state, node) => {
   const alt = node.attrs.alt || ''
-  const src = node.attrs.src || ''
+  const src = (node.attrs.src || '').split('?')[0]
   const title = node.attrs.title ? ` "${node.attrs.title}"` : ''
   state.write(`![${alt}](${src}${title})`)
   state.closeBlock(node)
 }
 
 defaultMarkdownSerializer.nodes.uploadVideo = (state, node) => {
-  const src = node.attrs.src || ''
+  const src = (node.attrs.src || '').split('?')[0]
   const fileName = node.attrs.fileName || 'video'
   state.write(`[${fileName}](${src})`)
   state.closeBlock(node)
 }
 
 defaultMarkdownSerializer.nodes.uploadFileCard = (state, node) => {
-  const url = node.attrs.url || ''
+  const url = (node.attrs.url || '').split('?')[0]
   const fileName = node.attrs.fileName || 'file'
   state.write(`[${fileName}](${url})`)
   state.closeBlock(node)
